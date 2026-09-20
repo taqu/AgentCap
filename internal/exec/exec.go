@@ -17,6 +17,14 @@ import (
 // MaxOutputBytes is the maximum number of bytes captured from stdout or stderr.
 const MaxOutputBytes = 10 * 1024 * 1024 // 10 MB
 
+// Options holds optional configuration for Run.
+type Options struct {
+	// StdoutSink, if set, receives a tee of the raw stdout stream (unlimited).
+	StdoutSink io.Writer
+	// StderrSink, if set, receives a tee of the raw stderr stream (unlimited).
+	StderrSink io.Writer
+}
+
 // Result holds the outcome of a completed child execution.
 type Result struct {
 	Args      []string
@@ -29,8 +37,8 @@ type Result struct {
 
 // Run executes the command specified by args, captures stdout/stderr (up to
 // MaxOutputBytes each), and returns the result. ctx cancellation kills the
-// child. stdin is forwarded from os.Stdin.
-func Run(ctx context.Context, args []string) (*Result, error) {
+// child. stdin is forwarded from os.Stdin. opts may be nil.
+func Run(ctx context.Context, args []string, opts *Options) (*Result, error) {
 	if len(args) == 0 {
 		return &Result{ExitCode: 1}, fmt.Errorf("no command specified")
 	}
@@ -44,8 +52,18 @@ func Run(ctx context.Context, args []string) (*Result, error) {
 	// Limit stdout/stderr capture to MaxOutputBytes.
 	stdoutBuf := &limitedBuffer{limit: MaxOutputBytes}
 	stderrBuf := &limitedBuffer{limit: MaxOutputBytes}
-	c.Stdout = stdoutBuf
-	c.Stderr = stderrBuf
+
+	if opts != nil && opts.StdoutSink != nil {
+		c.Stdout = io.MultiWriter(stdoutBuf, opts.StdoutSink)
+	} else {
+		c.Stdout = stdoutBuf
+	}
+
+	if opts != nil && opts.StderrSink != nil {
+		c.Stderr = io.MultiWriter(stderrBuf, opts.StderrSink)
+	} else {
+		c.Stderr = stderrBuf
+	}
 
 	start := time.Now()
 

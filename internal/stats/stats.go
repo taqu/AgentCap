@@ -10,9 +10,13 @@ import (
 
 // Stats holds cumulative reduction statistics.
 type Stats struct {
-	Commands int64 `json:"commands"`
-	RawBytes int64 `json:"raw_bytes"`
-	RetBytes int64 `json:"ret_bytes"`
+	Commands     int64 `json:"commands"`
+	RawBytes     int64 `json:"raw_bytes"`
+	RetBytes     int64 `json:"ret_bytes"`
+	ShowCalls    int64 `json:"show_calls,omitempty"`
+	ShowRetBytes int64 `json:"show_ret_bytes,omitempty"`
+	RawCalls     int64 `json:"raw_calls,omitempty"`
+	RawRetBytes  int64 `json:"raw_ret_bytes,omitempty"`
 }
 
 // Record loads existing stats, adds the new raw/ret bytes, and saves back.
@@ -31,6 +35,42 @@ func Record(raw, ret int) error {
 	s.Commands++
 	s.RawBytes += int64(raw)
 	s.RetBytes += int64(ret)
+
+	return saveTo(path, s)
+}
+
+// RecordShow records a show command call and the bytes returned.
+func RecordShow(retBytes int) error {
+	path, err := statsPath()
+	if err != nil {
+		return err
+	}
+
+	s, err := loadFrom(path)
+	if err != nil {
+		s = &Stats{}
+	}
+
+	s.ShowCalls++
+	s.ShowRetBytes += int64(retBytes)
+
+	return saveTo(path, s)
+}
+
+// RecordRaw records a raw command call and the bytes returned.
+func RecordRaw(retBytes int) error {
+	path, err := statsPath()
+	if err != nil {
+		return err
+	}
+
+	s, err := loadFrom(path)
+	if err != nil {
+		s = &Stats{}
+	}
+
+	s.RawCalls++
+	s.RawRetBytes += int64(retBytes)
 
 	return saveTo(path, s)
 }
