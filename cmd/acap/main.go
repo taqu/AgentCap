@@ -12,6 +12,7 @@ import (
 
 	"github.com/taqu/agentcap/internal/delta"
 	"github.com/taqu/agentcap/internal/exec"
+	"github.com/taqu/agentcap/internal/gitparse"
 	"github.com/taqu/agentcap/internal/project"
 	"github.com/taqu/agentcap/internal/query"
 	"github.com/taqu/agentcap/internal/reduce"
@@ -177,8 +178,17 @@ func runCmd(args []string) {
 	output := reduced.Output
 	presentation := string(delta.PresentationFull)
 
+	// Save git diff metadata if applicable.
+	if entry != nil && storeInitErr == nil {
+		if gdr, ok := reducer.(*reduce.GitDiffReducer); ok && gdr.ParsedDiff != nil {
+			if err := st.SaveGitDiff(entry.ID, gdr.ParsedDiff.Files); err != nil && debugMode {
+				fmt.Fprintf(os.Stderr, "acap: warning: save git diff: %v\n", err)
+			}
+		}
+	}
+
 	if sess != nil && baselineEntry != nil && entry != nil {
-		dr := selectDeltaReducer(reducer)
+		dr := selectDeltaReducer(reducer, st)
 		deltaResult := delta.Compare(
 			context.Background(),
 			baselineEntry,
@@ -246,7 +256,7 @@ func runCmd(args []string) {
 }
 
 // selectDeltaReducer maps a reduce.Reducer to its corresponding delta.Reducer.
-func selectDeltaReducer(r reduce.Reducer) delta.Reducer {
+func selectDeltaReducer(r reduce.Reducer, st *store.Store) delta.Reducer {
 	switch r.(type) {
 	case *reduce.GrepReducer:
 		return &delta.GrepDelta{}
@@ -254,6 +264,10 @@ func selectDeltaReducer(r reduce.Reducer) delta.Reducer {
 		return &delta.FindDelta{}
 	case *reduce.LsReducer:
 		return &delta.LsDelta{}
+	case *reduce.GitStatusReducer:
+		return &delta.GitStatusDelta{}
+	case *reduce.GitDiffReducer:
+		return &delta.GitDiffDelta{Store: st}
 	default:
 		return nil
 	}
@@ -277,8 +291,10 @@ func showCmd(args []string) {
 	linesFlag := fs.String("lines", "", "line range X:Y (1-based inclusive)")
 	matchFlag := fs.String("match", "", "search text (case-insensitive)")
 	pathFlag := fs.String("path", "", "path substring filter")
+	fileFlag := fs.String("file", "", "show file diff (git diff results)")
+	hunkFlag := fs.Int("hunk", 0, "show specific hunk (requires --file, 1-based)")
 	fs.Usage = func() {
-		fmt.Fprintln(os.Stderr, "Usage: acap show <id> [--meta] [--lines X:Y] [--match text] [--path path]")
+		fmt.Fprintln(os.Stderr, "Usage: acap show <id> [--meta] [--lines X:Y] [--match text] [--path path] [--file path] [--hunk N]")
 	}
 	if err := fs.Parse(args); err != nil {
 		os.Exit(1)
@@ -305,6 +321,8 @@ func showCmd(args []string) {
 	var written int
 
 	switch {
+	case *fileFlag != "":
+		written = showGitFile(s, entry, *fileFlag, *hunkFlag)
 	case *metaFlag:
 		written = showMeta(entry)
 	case *linesFlag != "":
@@ -324,6 +342,82 @@ func showCmd(args []string) {
 	}
 
 	_ = s.RecordShow(written)
+}
+
+func showGitFile(st *store.Store, entry *store.Entry, filePath string, hunkN int) int {
+	files, err := st.GetGitDiffFiles(entry.ID)
+	if err != nil || len(files) == 0 {
+		fmt.Fprintf(os.Stderr, "acap: show --file: no git diff data for %s\n", entry.ID)
+		os.Exit(1)
+	}
+
+	// Find file by exact or suffix match.
+	var matched *gitparse.GitDiffFile
+	for i := range files {
+		f := &files[i]
+		p := f.Path()
+		if p == filePath || strings.HasSuffix(p, "/"+filePath) || strings.HasSuffix(p, "\\"+filePath) {
+			matched = f
+			break
+		}
+	}
+	if matched == nil {
+		fmt.Fprintf(os.Stderr, "acap: show --file: file %q not found in git diff result %s\n", filePath, entry.ID)
+		os.Exit(1)
+	}
+
+	rawFile, err := os.Open(entry.StdoutPath())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "acap: show --file: %v\n", err)
+		os.Exit(1)
+	}
+	defer rawFile.Close()
+
+	if hunkN > 0 {
+		// Look up hunk.
+		hunks, err := st.GetGitDiffHunks(entry.ID, matched.Index)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "acap: show --file --hunk: %v\n", err)
+			os.Exit(1)
+		}
+		if hunkN > len(hunks) {
+			fmt.Fprintf(os.Stderr, "acap: show --file --hunk: hunk %d out of range (file has %d hunks)\n", hunkN, len(hunks))
+			os.Exit(1)
+		}
+		h := hunks[hunkN-1]
+		size := h.RawEnd - h.RawStart
+		if size <= 0 {
+			fmt.Fprintf(os.Stderr, "acap: show --file --hunk: empty hunk\n")
+			os.Exit(1)
+		}
+		if _, err := rawFile.Seek(h.RawStart, io.SeekStart); err != nil {
+			fmt.Fprintf(os.Stderr, "acap: show --file --hunk: seek: %v\n", err)
+			os.Exit(1)
+		}
+		n, err := io.Copy(os.Stdout, io.LimitReader(rawFile, size))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "acap: show --file --hunk: read: %v\n", err)
+			os.Exit(1)
+		}
+		return int(n)
+	}
+
+	// Read entire file range.
+	size := matched.RawEnd - matched.RawStart
+	if size <= 0 {
+		fmt.Fprintf(os.Stderr, "acap: show --file: empty file range\n")
+		os.Exit(1)
+	}
+	if _, err := rawFile.Seek(matched.RawStart, io.SeekStart); err != nil {
+		fmt.Fprintf(os.Stderr, "acap: show --file: seek: %v\n", err)
+		os.Exit(1)
+	}
+	n, err := io.Copy(os.Stdout, io.LimitReader(rawFile, size))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "acap: show --file: read: %v\n", err)
+		os.Exit(1)
+	}
+	return int(n)
 }
 
 func showMeta(entry *store.Entry) int {
@@ -681,6 +775,16 @@ func reducerTypeName(r reduce.Reducer) string {
 		return "du"
 	case *reduce.WcReducer:
 		return "wc"
+	case *reduce.GitStatusReducer:
+		return "git-status"
+	case *reduce.GitDiffReducer:
+		return "git-diff"
+	case *reduce.GitShowReducer:
+		return "git-show"
+	case *reduce.GitLogReducer:
+		return "git-log"
+	case *reduce.GitBranchReducer:
+		return "git-branch"
 	case *reduce.GenericReducer:
 		return "generic"
 	default:

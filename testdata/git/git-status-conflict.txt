@@ -1,0 +1,13 @@
+On branch merge-branch
+You have unmerged paths.
+  (fix conflicts and run "git commit")
+  (use "git merge --abort" to abort the merge)
+
+Unmerged paths:
+  (use "git add <file>..." to mark resolution)
+	both modified:   internal/reduce/reducer.go
+	both added:      internal/new/feature.go
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+	modified:   cmd/acap/main.go

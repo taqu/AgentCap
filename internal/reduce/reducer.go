@@ -42,6 +42,8 @@ func Select(args []string) Reducer {
 		return &DuReducer{}
 	case "wc":
 		return &WcReducer{}
+	case "git", "git.exe":
+		return SelectGit(args)
 	default:
 		return &GenericReducer{}
 	}

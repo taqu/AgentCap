@@ -1,0 +1,14 @@
+diff --git a/internal/old/package.go b/internal/new/package.go
+similarity index 85%
+rename from internal/old/package.go
+rename to internal/new/package.go
+index 1234567..abcdef0 100644
+--- a/internal/old/package.go
++++ b/internal/new/package.go
+@@ -1,4 +1,4 @@
+-// Package old provides old functionality.
+-package old
++// Package new provides new functionality.
++package new
+
+ func Hello() string {

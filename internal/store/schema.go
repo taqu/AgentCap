@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-const currentSchemaVersion = 1
+const currentSchemaVersion = 2
 
 const schemaV1 = `
 CREATE TABLE IF NOT EXISTS schema_info (
@@ -56,17 +56,17 @@ func (s *Store) initSchema() error {
 		if _, err := s.db.ExecContext(context.Background(), schemaV1); err != nil {
 			return fmt.Errorf("create schema: %w", err)
 		}
-		// Insert version only if schema_info is empty.
+		// Insert initial schema version, then run migrations to current.
 		var count int
 		_ = s.db.QueryRowContext(context.Background(),
 			`SELECT COUNT(*) FROM schema_info`).Scan(&count)
 		if count == 0 {
 			if _, err := s.db.ExecContext(context.Background(),
-				`INSERT INTO schema_info(version) VALUES(?)`, currentSchemaVersion); err != nil {
+				`INSERT INTO schema_info(version) VALUES(?)`, 1); err != nil {
 				return fmt.Errorf("set schema version: %w", err)
 			}
 		}
-		return nil
+		return runMigrations(s.db, 1, currentSchemaVersion)
 	}
 
 	// Check version compatibility.

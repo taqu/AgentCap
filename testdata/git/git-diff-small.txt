@@ -1,0 +1,26 @@
+diff --git a/internal/reduce/reducer.go b/internal/reduce/reducer.go
+index 1234567..abcdef0 100644
+--- a/internal/reduce/reducer.go
++++ b/internal/reduce/reducer.go
+@@ -28,6 +28,9 @@ func Select(args []string) Reducer {
+ 	case "wc":
+ 		return &WcReducer{}
++	case "git", "git.exe":
++		return SelectGit(args)
+ 	default:
+ 		return &GenericReducer{}
+ 	}
+diff --git a/cmd/acap/main.go b/cmd/acap/main.go
+index 2345678..bcdef01 100644
+--- a/cmd/acap/main.go
++++ b/cmd/acap/main.go
+@@ -249,6 +249,10 @@ func selectDeltaReducer(r reduce.Reducer) delta.Reducer {
+ 	case *reduce.LsReducer:
+ 		return &delta.LsDelta{}
++	case *reduce.GitStatusReducer:
++		return &delta.GitStatusDelta{}
++	case *reduce.GitDiffReducer:
++		return &delta.GitDiffDelta{Store: st}
+ 	default:
+ 		return nil
+ 	}
