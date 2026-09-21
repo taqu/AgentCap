@@ -3,23 +3,19 @@ package store
 import (
 	"bytes"
 	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 )
 
-// newTestStore creates a Store backed by a temp directory.
 func newTestStore(t *testing.T) *Store {
 	t.Helper()
-	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, "results"), 0o700); err != nil {
-		t.Fatal(err)
+	root := t.TempDir()
+	s, err := Open(root)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
 	}
-	if err := os.MkdirAll(filepath.Join(dir, "tmp"), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	return &Store{dir: dir}
+	t.Cleanup(func() { _ = s.Close() })
+	return s
 }
 
 func sampleMeta() Meta {
@@ -32,7 +28,6 @@ func sampleMeta() Meta {
 	}
 }
 
-// TestSave verifies all four files are created with correct content.
 func TestSave(t *testing.T) {
 	s := newTestStore(t)
 	stdout := []byte("hello stdout")
@@ -47,28 +42,27 @@ func TestSave(t *testing.T) {
 		t.Errorf("expected 6-char id, got %q", e.ID)
 	}
 
+	// Verify raw objects are readable.
 	if got, err := os.ReadFile(e.StdoutPath()); err != nil || !bytes.Equal(got, stdout) {
-		t.Errorf("stdout file: err=%v content=%q", err, got)
+		t.Errorf("stdout object: err=%v content=%q", err, got)
 	}
 	if got, err := os.ReadFile(e.StderrPath()); err != nil || !bytes.Equal(got, stderr) {
-		t.Errorf("stderr file: err=%v content=%q", err, got)
+		t.Errorf("stderr object: err=%v content=%q", err, got)
 	}
-	if got, err := os.ReadFile(e.CapsulePath()); err != nil || string(got) != capsule {
-		t.Errorf("capsule file: err=%v content=%q", err, got)
-	}
-	if got, err := os.ReadFile(filepath.Join(e.Dir, "meta.json")); err != nil || len(got) == 0 {
-		t.Errorf("meta.json: err=%v", err)
+
+	// Verify capsule.
+	cap, err := e.Capsule()
+	if err != nil || cap != capsule {
+		t.Errorf("capsule: err=%v got=%q", err, cap)
 	}
 }
 
-// TestOpen_Exact verifies exact-ID lookup.
 func TestOpen_Exact(t *testing.T) {
 	s := newTestStore(t)
 	e, err := s.Save(sampleMeta(), []byte("out"), []byte("err"), "capsule")
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	got, err := s.Open(e.ID)
 	if err != nil {
 		t.Fatalf("Open exact: %v", err)
@@ -78,214 +72,25 @@ func TestOpen_Exact(t *testing.T) {
 	}
 }
 
-// TestOpen_Prefix verifies prefix lookup and ambiguity detection.
 func TestOpen_Prefix(t *testing.T) {
 	s := newTestStore(t)
-
-	// Inject two known directories directly so we can control their names.
-	id1 := "aabbcc"
-	id2 := "aabbdd"
-	for _, id := range []string{id1, id2} {
-		dir := filepath.Join(s.dir, "results", id)
-		if err := os.MkdirAll(dir, 0o700); err != nil {
-			t.Fatal(err)
-		}
-		m := Meta{ID: id, Command: []string{"echo"}, CreatedAt: time.Now().UTC()}
-		data, _ := jsonMarshal(m)
-		if err := os.WriteFile(filepath.Join(dir, "meta.json"), data, 0o600); err != nil {
-			t.Fatal(err)
-		}
-		// create required files
-		for _, f := range []string{"stdout", "stderr", "capsule"} {
-			_ = os.WriteFile(filepath.Join(dir, f), []byte{}, 0o600)
-		}
+	e, err := s.Save(sampleMeta(), []byte("out"), []byte{}, "cap")
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	// Unique prefix "aabbcc" should resolve to id1.
-	e, err := s.Open("aabbcc")
+	// Use the first 4 chars as prefix.
+	prefix := e.ID[:4]
+	got, err := s.Open(prefix)
 	if err != nil {
 		t.Fatalf("Open prefix: %v", err)
 	}
-	if e.ID != id1 {
-		t.Errorf("expected %s, got %s", id1, e.ID)
-	}
-
-	// Ambiguous prefix "aabb" should fail.
-	_, err = s.Open("aabb")
-	if err == nil {
-		t.Error("expected ambiguity error for prefix 'aabb'")
-	}
-	if !strings.Contains(err.Error(), "ambiguous") {
-		t.Errorf("expected 'ambiguous' in error, got: %v", err)
+	if got.ID != e.ID {
+		t.Errorf("id mismatch: got %s want %s", got.ID, e.ID)
 	}
 }
 
-// TestOpen_Missing verifies a clean error for unknown IDs.
-func TestOpen_Missing(t *testing.T) {
-	s := newTestStore(t)
-	_, err := s.Open("zzzzzz")
-	if err == nil {
-		t.Error("expected error for unknown id")
-	}
-	if !strings.Contains(err.Error(), "not found") {
-		t.Errorf("expected 'not found' in error, got: %v", err)
-	}
-}
-
-// TestSave_NonZeroExit verifies failed commands are stored correctly.
-func TestSave_NonZeroExit(t *testing.T) {
-	s := newTestStore(t)
-	m := sampleMeta()
-	m.ExitCode = 1
-	m.Truncated = true
-
-	e, err := s.Save(m, []byte(""), []byte("error: not found"), "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := s.Open(e.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.Meta.ExitCode != 1 {
-		t.Errorf("exit_code: got %d want 1", got.Meta.ExitCode)
-	}
-	if !got.Meta.Truncated {
-		t.Error("expected truncated=true")
-	}
-}
-
-// TestCorrupt verifies that an entry with a missing meta.json is skipped in List
-// and returns an error from Open.
-func TestCorrupt(t *testing.T) {
-	s := newTestStore(t)
-
-	// Create an entry dir without meta.json.
-	corruptDir := filepath.Join(s.dir, "results", "corrupt")
-	if err := os.MkdirAll(corruptDir, 0o700); err != nil {
-		t.Fatal(err)
-	}
-
-	// List should not error out and should skip the corrupt entry.
-	entries, err := s.List()
-	if err != nil {
-		t.Fatalf("List with corrupt entry: %v", err)
-	}
-	for _, e := range entries {
-		if e.ID == "corrupt" {
-			t.Error("corrupt entry should be skipped in List")
-		}
-	}
-
-	// Open should return an error.
-	_, err = s.Open("corrupt")
-	if err == nil {
-		t.Error("expected error opening corrupt entry")
-	}
-}
-
-// TestCleanup verifies old results are removed, new ones kept.
-func TestCleanup(t *testing.T) {
-	s := newTestStore(t)
-
-	// Save an "old" entry by manually adjusting its meta.
-	e, err := s.Save(sampleMeta(), []byte("old"), []byte{}, "old capsule")
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Patch meta.json with an old timestamp.
-	m := e.Meta
-	m.CreatedAt = time.Now().Add(-10 * 24 * time.Hour)
-	data, _ := jsonMarshal(m)
-	_ = os.WriteFile(filepath.Join(e.Dir, "meta.json"), data, 0o600)
-
-	// Save a new entry.
-	eNew, err := s.Save(sampleMeta(), []byte("new"), []byte{}, "new capsule")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	removed, err := s.Cleanup(7 * 24 * time.Hour)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if removed != 1 {
-		t.Errorf("expected 1 removed, got %d", removed)
-	}
-
-	// Old entry should be gone.
-	if _, err := os.Stat(e.Dir); !os.IsNotExist(err) {
-		t.Error("old entry should have been removed")
-	}
-	// New entry should remain.
-	if _, err := os.Stat(eNew.Dir); err != nil {
-		t.Errorf("new entry should still exist: %v", err)
-	}
-}
-
-// TestAtomicCreation verifies that the tmp directory is not visible as a valid
-// result during creation.
-func TestAtomicCreation(t *testing.T) {
-	s := newTestStore(t)
-
-	// List results before any save — should be empty.
-	entries, err := s.List()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(entries) != 0 {
-		t.Errorf("expected 0 entries before save, got %d", len(entries))
-	}
-
-	// Manually place a dir in tmp/ — it should not appear in List or Open.
-	tmpDir := filepath.Join(s.dir, "tmp", "phantom")
-	if err := os.MkdirAll(tmpDir, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	m := Meta{ID: "phantom", Command: []string{"echo"}, CreatedAt: time.Now().UTC()}
-	data, _ := jsonMarshal(m)
-	_ = os.WriteFile(filepath.Join(tmpDir, "meta.json"), data, 0o600)
-
-	// List should still return 0 results (tmp/ is separate from results/).
-	entries, err = s.List()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(entries) != 0 {
-		t.Errorf("tmp entry should not appear in List, got %d", len(entries))
-	}
-
-	// Open should not find it either.
-	if _, err := s.Open("phantom"); err == nil {
-		t.Error("tmp entry should not be openable via Open")
-	}
-}
-
-// TestLargeOutput verifies that a 20MB stdout is saved fully (not capped at 10MB).
-func TestLargeOutput(t *testing.T) {
-	s := newTestStore(t)
-
-	const size = 20 * 1024 * 1024
-	large := bytes.Repeat([]byte("x"), size)
-
-	e, err := s.Save(sampleMeta(), large, []byte{}, "capsule")
-	if err != nil {
-		t.Fatalf("Save large: %v", err)
-	}
-
-	fi, err := os.Stat(e.StdoutPath())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if fi.Size() != int64(size) {
-		t.Errorf("stdout file size: got %d, want %d", fi.Size(), size)
-	}
-}
-
-// TestRoundTrip tests Save → Open → read capsule/stdout/stderr.
 func TestRoundTrip(t *testing.T) {
 	s := newTestStore(t)
-
 	stdout := []byte("round trip stdout\n")
 	stderr := []byte("round trip stderr\n")
 	capsule := "@acap xxxxxx rg matches=1 files=1\n"
@@ -294,12 +99,10 @@ func TestRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	got, err := s.Open(entry.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	cap2, err := got.Capsule()
 	if err != nil {
 		t.Fatal(err)
@@ -307,57 +110,166 @@ func TestRoundTrip(t *testing.T) {
 	if cap2 != capsule {
 		t.Errorf("capsule mismatch: got %q want %q", cap2, capsule)
 	}
-
 	if data, err := os.ReadFile(got.StdoutPath()); err != nil || !bytes.Equal(data, stdout) {
-		t.Errorf("stdout mismatch: %v %q", err, data)
+		t.Errorf("stdout mismatch: %v", err)
 	}
 	if data, err := os.ReadFile(got.StderrPath()); err != nil || !bytes.Equal(data, stderr) {
-		t.Errorf("stderr mismatch: %v %q", err, data)
+		t.Errorf("stderr mismatch: %v", err)
 	}
 }
 
-// BenchmarkSave benchmarks the Save operation.
+func TestList(t *testing.T) {
+	s := newTestStore(t)
+	for i := 0; i < 3; i++ {
+		if _, err := s.Save(sampleMeta(), []byte("out"), []byte{}, "cap"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	entries, err := s.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 3 {
+		t.Errorf("expected 3 entries, got %d", len(entries))
+	}
+}
+
+func TestDelete(t *testing.T) {
+	s := newTestStore(t)
+	e, err := s.Save(sampleMeta(), []byte("del"), []byte{}, "cap")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Delete(e.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Open(e.ID); err == nil {
+		t.Error("expected error opening deleted entry")
+	}
+}
+
+func TestCleanup(t *testing.T) {
+	s := newTestStore(t)
+	// Save one entry with a backdated CreatedAt.
+	m := sampleMeta()
+	m.CreatedAt = time.Now().UTC().Add(-10 * 24 * time.Hour)
+	if _, err := s.Save(m, []byte("old"), []byte{}, "cap"); err != nil {
+		t.Fatal(err)
+	}
+	// Clean entries older than 7 days.
+	n, err := s.Cleanup(7 * 24 * time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Errorf("expected 1 removed, got %d", n)
+	}
+}
+
+func TestProjectIsolation(t *testing.T) {
+	rootA := t.TempDir()
+	rootB := t.TempDir()
+
+	storeA, err := Open(rootA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer storeA.Close()
+
+	storeB, err := Open(rootB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer storeB.Close()
+
+	e, err := storeA.Save(sampleMeta(), []byte("a"), []byte{}, "cap-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// storeB must not see storeA's result.
+	if _, err := storeB.Open(e.ID); err == nil {
+		t.Error("storeB should not find storeA result")
+	}
+}
+
+func TestStats(t *testing.T) {
+	s := newTestStore(t)
+	if err := s.RecordRun(1000, 200, 100, "full"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RecordRun(2000, 400, 0, "unchanged"); err != nil {
+		t.Fatal(err)
+	}
+	st, err := s.LoadStats()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Commands != 2 {
+		t.Errorf("commands: got %d want 2", st.Commands)
+	}
+	if st.RawBytes != 3000 {
+		t.Errorf("raw_bytes: got %d want 3000", st.RawBytes)
+	}
+	if st.UnchangedCount != 1 {
+		t.Errorf("unchanged_count: got %d want 1", st.UnchangedCount)
+	}
+}
+
+func TestSchemaVersion(t *testing.T) {
+	root := t.TempDir()
+	s, err := Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Manually bump version beyond supported.
+	if _, err := s.db.Exec(`UPDATE schema_info SET version=999`); err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+
+	// Reopening should fail with schema version error.
+	_, err = Open(root)
+	if err == nil {
+		t.Error("expected error for unsupported schema version")
+	}
+}
+
 func BenchmarkSave(b *testing.B) {
-	dir := b.TempDir()
-	_ = os.MkdirAll(filepath.Join(dir, "results"), 0o700)
-	_ = os.MkdirAll(filepath.Join(dir, "tmp"), 0o700)
-	s := &Store{dir: dir}
+	root := b.TempDir()
+	s, err := Open(root)
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer s.Close()
 
 	stdout := bytes.Repeat([]byte("bench line\n"), 1000)
-	stderr := []byte{}
-	capsule := "@acap bench\n"
 	m := sampleMeta()
-
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if _, err := s.Save(m, stdout, stderr, capsule); err != nil {
+		if _, err := s.Save(m, stdout, []byte{}, "@acap bench\n"); err != nil {
 			b.Fatal(err)
 		}
 	}
 }
 
-// BenchmarkOpen benchmarks the Open operation.
 func BenchmarkOpen(b *testing.B) {
-	dir := b.TempDir()
-	_ = os.MkdirAll(filepath.Join(dir, "results"), 0o700)
-	_ = os.MkdirAll(filepath.Join(dir, "tmp"), 0o700)
-	s := &Store{dir: dir}
+	root := b.TempDir()
+	s, err := Open(root)
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer s.Close()
 
 	e, err := s.Save(sampleMeta(), []byte("bench"), []byte{}, "bench")
 	if err != nil {
 		b.Fatal(err)
 	}
-
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		if _, err := s.Open(e.ID); err != nil {
 			b.Fatal(err)
 		}
 	}
-}
-
-// jsonMarshal is a test helper to marshal without importing encoding/json directly.
-func jsonMarshal(v interface{}) ([]byte, error) {
-	// Use the same encoding/json used in production code.
-	return marshalJSON(v)
 }

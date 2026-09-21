@@ -12,6 +12,7 @@ import (
 
 	"github.com/taqu/agentcap/internal/delta"
 	"github.com/taqu/agentcap/internal/exec"
+	"github.com/taqu/agentcap/internal/project"
 	"github.com/taqu/agentcap/internal/query"
 	"github.com/taqu/agentcap/internal/reduce"
 	"github.com/taqu/agentcap/internal/session"
@@ -48,6 +49,7 @@ Examples:
 Environment:
   ACAP_DEBUG=1        Print reducer debug info to stderr.
   ACAP_SESSION_ID=xx  Enable session-aware delta compression.
+  ACAP_ROOT=<path>    Override project root for .acap/store.db discovery.
 `
 
 const runUsage = `Usage: acap run <command> [args...]
@@ -149,6 +151,9 @@ func runCmd(args []string) {
 
 	// Store result.
 	st, storeInitErr := store.New()
+	if storeInitErr == nil {
+		defer st.Close()
+	}
 	var entry *store.Entry
 	if storeInitErr == nil {
 		entry, err = st.Save(meta, result.Stdout, result.Stderr, reduced.Output)
@@ -190,13 +195,13 @@ func runCmd(args []string) {
 		updatedMeta := entry.Meta
 		updatedMeta.BaselineID = baselineEntry.Meta.ID
 		updatedMeta.Presentation = presentation
-		if err := entry.UpdateMeta(updatedMeta); err != nil && debugMode {
+		if err := st.UpdateMeta(entry, updatedMeta); err != nil && debugMode {
 			fmt.Fprintf(os.Stderr, "acap: warning: update meta: %v\n", err)
 		}
 	} else if entry != nil {
 		updatedMeta := entry.Meta
 		updatedMeta.Presentation = "full"
-		_ = entry.UpdateMeta(updatedMeta)
+		_ = st.UpdateMeta(entry, updatedMeta)
 	}
 
 	// Inject result ID.
@@ -214,7 +219,9 @@ func runCmd(args []string) {
 	// Persist statistics.
 	stateless := reduced.RetBytes
 	stateful := len(output)
-	_ = stats.RecordRun(reduced.RawBytes, stateless, stateful, presentation)
+	if st != nil {
+		_ = st.RecordRun(reduced.RawBytes, stateless, stateful, presentation)
+	}
 
 	if debugMode {
 		var idStr string
@@ -288,6 +295,7 @@ func showCmd(args []string) {
 		fmt.Fprintf(os.Stderr, "acap: show: %v\n", err)
 		os.Exit(1)
 	}
+	defer s.Close()
 	entry, err := s.Open(id)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "acap: show: %v\n", err)
@@ -315,7 +323,7 @@ func showCmd(args []string) {
 		written = len(cap)
 	}
 
-	_ = stats.RecordShow(written)
+	_ = s.RecordShow(written)
 }
 
 func showMeta(entry *store.Entry) int {
@@ -440,6 +448,7 @@ func rawCmd(args []string) {
 		fmt.Fprintf(os.Stderr, "acap: raw: %v\n", err)
 		os.Exit(1)
 	}
+	defer s.Close()
 	entry, err := s.Open(id)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "acap: raw: %v\n", err)
@@ -467,7 +476,7 @@ func rawCmd(args []string) {
 		fmt.Fprintf(os.Stderr, "acap: raw: copy: %v\n", err)
 		os.Exit(1)
 	}
-	_ = stats.RecordRaw(int(n))
+	_ = s.RecordRaw(int(n))
 }
 
 func cleanCmd(args []string) {
@@ -491,6 +500,7 @@ func cleanCmd(args []string) {
 		fmt.Fprintf(os.Stderr, "acap: clean: %v\n", err)
 		os.Exit(1)
 	}
+	defer s.Close()
 
 	removed, err := s.Cleanup(dur)
 	if err != nil {
@@ -518,7 +528,16 @@ func parseDuration(s string) (time.Duration, error) {
 }
 
 func statsCmd() {
-	s, err := stats.Load()
+	cwd, _ := os.Getwd()
+	root := project.FindRoot(cwd)
+	st, err := store.Open(root)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "acap: stats: %v\n", err)
+		os.Exit(1)
+	}
+	defer st.Close()
+
+	s, err := st.LoadStats()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "acap: stats: %v\n", err)
 		os.Exit(1)
