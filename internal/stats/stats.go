@@ -17,26 +17,45 @@ type Stats struct {
 	ShowRetBytes int64 `json:"show_ret_bytes,omitempty"`
 	RawCalls     int64 `json:"raw_calls,omitempty"`
 	RawRetBytes  int64 `json:"raw_ret_bytes,omitempty"`
+	// Phase 3 fields
+	UnchangedCount    int64 `json:"unchanged_count,omitempty"`
+	DeltaCount        int64 `json:"delta_count,omitempty"`
+	FullFallbackCount int64 `json:"full_fallback_count,omitempty"`
+	StatelessBytes    int64 `json:"stateless_bytes,omitempty"`
+	StatefulBytes     int64 `json:"stateful_bytes,omitempty"`
 }
 
-// Record loads existing stats, adds the new raw/ret bytes, and saves back.
-func Record(raw, ret int) error {
+// RecordRun records a run with optional session-aware stats.
+// presentation is "full", "unchanged", "delta", or "" for non-session runs.
+// stateless is what Phase 1/2 would have returned; stateful is what was actually returned.
+func RecordRun(raw, stateless, stateful int, presentation string) error {
 	path, err := statsPath()
 	if err != nil {
 		return err
 	}
-
 	s, err := loadFrom(path)
 	if err != nil {
-		// If we can't load (file not found, corrupt), start fresh.
 		s = &Stats{}
 	}
-
 	s.Commands++
 	s.RawBytes += int64(raw)
-	s.RetBytes += int64(ret)
-
+	s.RetBytes += int64(stateful)
+	s.StatelessBytes += int64(stateless)
+	s.StatefulBytes += int64(stateful)
+	switch presentation {
+	case "unchanged":
+		s.UnchangedCount++
+	case "delta":
+		s.DeltaCount++
+	case "full":
+		s.FullFallbackCount++
+	}
 	return saveTo(path, s)
+}
+
+// Record is kept for backwards compat; calls RecordRun with empty presentation.
+func Record(raw, ret int) error {
+	return RecordRun(raw, ret, ret, "")
 }
 
 // RecordShow records a show command call and the bytes returned.

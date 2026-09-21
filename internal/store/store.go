@@ -27,6 +27,14 @@ type Meta struct {
 	Reducer     string    `json:"reducer"`
 	CreatedAt   time.Time `json:"created_at"`
 	Truncated   bool      `json:"truncated"`
+	// Phase 3 fields (all omitempty for backwards compatibility)
+	SessionID    string `json:"session_id,omitempty"`
+	Sequence     int    `json:"sequence,omitempty"`
+	BaselineID   string `json:"baseline_id,omitempty"`
+	Presentation string `json:"presentation,omitempty"`
+	StdoutHash   string `json:"stdout_hash,omitempty"`
+	StderrHash   string `json:"stderr_hash,omitempty"`
+	WorkDir      string `json:"work_dir,omitempty"`
 }
 
 // Entry is a resolved result directory.
@@ -58,6 +66,25 @@ func (e *Entry) Capsule() (string, error) {
 		return "", fmt.Errorf("store: read capsule %s: %w", e.ID, err)
 	}
 	return string(data), nil
+}
+
+// UpdateMeta rewrites meta.json with updated metadata.
+func (e *Entry) UpdateMeta(meta Meta) error {
+	data, err := json.MarshalIndent(meta, "", "  ")
+	if err != nil {
+		return fmt.Errorf("store: marshal meta: %w", err)
+	}
+	tmp := filepath.Join(e.Dir, "meta.json.tmp")
+	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+		return fmt.Errorf("store: write meta tmp: %w", err)
+	}
+	dst := filepath.Join(e.Dir, "meta.json")
+	if err := os.Rename(tmp, dst); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("store: rename meta: %w", err)
+	}
+	e.Meta = meta
+	return nil
 }
 
 // Store is a filesystem-backed result store.

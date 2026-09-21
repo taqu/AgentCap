@@ -10,9 +10,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/taqu/agentcap/internal/delta"
 	"github.com/taqu/agentcap/internal/exec"
 	"github.com/taqu/agentcap/internal/query"
 	"github.com/taqu/agentcap/internal/reduce"
+	"github.com/taqu/agentcap/internal/session"
 	"github.com/taqu/agentcap/internal/stats"
 	"github.com/taqu/agentcap/internal/store"
 )
@@ -25,6 +27,8 @@ Usage:
   acap raw  <id> [--stdout|--stderr]
   acap clean [--older-than <duration>]
   acap stats
+  acap session <start|info|list|history>
+  acap history
 
 Examples:
   acap run ls -la
@@ -36,9 +40,14 @@ Examples:
   acap show 8f31c2 --match "func "
   acap raw  8f31c2 --stderr
   acap clean --older-than 7d
+  acap session start
+  acap session info
+  acap session list
+  acap history
 
 Environment:
-  ACAP_DEBUG=1   Print reducer debug info to stderr.
+  ACAP_DEBUG=1        Print reducer debug info to stderr.
+  ACAP_SESSION_ID=xx  Enable session-aware delta compression.
 `
 
 const runUsage = `Usage: acap run <command> [args...]
@@ -69,6 +78,10 @@ func main() {
 		cleanCmd(args[1:])
 	case "stats":
 		statsCmd()
+	case "session":
+		sessionCmd(args[1:])
+	case "history":
+		historyCmd(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "acap: unknown command %q\n\n%s", args[0], usage)
 		os.Exit(1)
@@ -96,22 +109,49 @@ func runCmd(args []string) {
 	reduced := reducer.Reduce(result)
 	reduceDuration := time.Since(t0)
 
+	// Compute hashes.
+	stdoutHash := delta.HashBytes(result.Stdout)
+	stderrHash := delta.HashBytes(result.Stderr)
+
+	// Get working directory.
+	cwd, _ := os.Getwd()
+
+	// Build metadata.
+	reducerName := reducerTypeName(reducer)
+	meta := store.Meta{
+		Command:     args,
+		ExitCode:    result.ExitCode,
+		StartedAt:   startTime,
+		DurationMs:  result.Duration.Milliseconds(),
+		StdoutBytes: int64(len(result.Stdout)),
+		StderrBytes: int64(len(result.Stderr)),
+		Reducer:     reducerName,
+		CreatedAt:   time.Now().UTC(),
+		Truncated:   result.Truncated,
+		StdoutHash:  stdoutHash,
+		StderrHash:  stderrHash,
+		WorkDir:     cwd,
+	}
+
+	// Find session and baseline.
+	var sess *session.Session
+	var baselineEntry *store.Entry
+	var baselineRec *session.HistoryRecord
+
+	if s, err := session.Current(); err == nil && s != nil {
+		sess = s
+		meta.SessionID = s.ID
+		key := session.NewKey(args, cwd)
+		if rec, err := s.LatestBaseline(key); err == nil && rec != nil {
+			baselineRec = rec
+		}
+	}
+
 	// Store result.
-	s, storeInitErr := store.New()
+	st, storeInitErr := store.New()
 	var entry *store.Entry
 	if storeInitErr == nil {
-		reducerName := reducerTypeName(reducer)
-		entry, err = s.Save(store.Meta{
-			Command:     args,
-			ExitCode:    result.ExitCode,
-			StartedAt:   startTime,
-			DurationMs:  result.Duration.Milliseconds(),
-			StdoutBytes: int64(len(result.Stdout)),
-			StderrBytes: int64(len(result.Stderr)),
-			Reducer:     reducerName,
-			CreatedAt:   time.Now().UTC(),
-			Truncated:   result.Truncated,
-		}, result.Stdout, result.Stderr, reduced.Output)
+		entry, err = st.Save(meta, result.Stdout, result.Stderr, reduced.Output)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "acap: warning: result not stored: %v\n", err)
 			entry = nil
@@ -120,32 +160,96 @@ func runCmd(args []string) {
 		fmt.Fprintf(os.Stderr, "acap: warning: result not stored: %v\n", storeInitErr)
 	}
 
-	// Inject ID into output (only if storage succeeded).
+	// Load baseline entry if we have a reference.
+	if sess != nil && baselineRec != nil && st != nil {
+		if be, err := st.Open(baselineRec.ResultID); err == nil {
+			baselineEntry = be
+		}
+		// Missing baseline is OK: fall back to full capsule.
+	}
+
+	// Determine presentation.
 	output := reduced.Output
+	presentation := string(delta.PresentationFull)
+
+	if sess != nil && baselineEntry != nil && entry != nil {
+		dr := selectDeltaReducer(reducer)
+		deltaResult := delta.Compare(
+			context.Background(),
+			baselineEntry,
+			entry,
+			reduced.Output,
+			dr,
+			stdoutHash,
+			stderrHash,
+		)
+		output = deltaResult.Output
+		presentation = string(deltaResult.Presentation)
+
+		// Update stored metadata with baseline and presentation info.
+		updatedMeta := entry.Meta
+		updatedMeta.BaselineID = baselineEntry.Meta.ID
+		updatedMeta.Presentation = presentation
+		if err := entry.UpdateMeta(updatedMeta); err != nil && debugMode {
+			fmt.Fprintf(os.Stderr, "acap: warning: update meta: %v\n", err)
+		}
+	} else if entry != nil {
+		updatedMeta := entry.Meta
+		updatedMeta.Presentation = "full"
+		_ = entry.UpdateMeta(updatedMeta)
+	}
+
+	// Inject result ID.
 	if entry != nil {
 		output = injectResultID(output, entry.ID)
 	}
 	fmt.Print(output)
 
+	// Record in session history.
+	if sess != nil && entry != nil {
+		key := session.NewKey(args, cwd)
+		_ = sess.Record(entry.ID, key, result.ExitCode, stdoutHash, stderrHash, presentation)
+	}
+
 	// Persist statistics.
-	_ = stats.Record(reduced.RawBytes, reduced.RetBytes)
+	stateless := reduced.RetBytes
+	stateful := len(output)
+	_ = stats.RecordRun(reduced.RawBytes, stateless, stateful, presentation)
 
 	if debugMode {
-		reducerName := reducerTypeName(reducer)
 		var idStr string
 		if entry != nil {
 			idStr = entry.ID
 		} else {
 			idStr = "(not stored)"
 		}
-		fmt.Fprintf(os.Stderr, "acap: cmd=%s reducer=%s id=%s raw=%d ret=%d exec=%s reduce=%s\n",
-			args[0], reducerName, idStr, reduced.RawBytes, reduced.RetBytes,
+		var sessionStr string
+		if sess != nil {
+			sessionStr = sess.ID
+		}
+		fmt.Fprintf(os.Stderr, "acap: cmd=%s reducer=%s id=%s session=%s presentation=%s raw=%d stateless=%d stateful=%d exec=%s reduce=%s\n",
+			args[0], reducerName, idStr, sessionStr, presentation,
+			reduced.RawBytes, stateless, stateful,
 			execDuration.Round(time.Millisecond),
 			reduceDuration.Round(time.Millisecond),
 		)
 	}
 
 	os.Exit(result.ExitCode)
+}
+
+// selectDeltaReducer maps a reduce.Reducer to its corresponding delta.Reducer.
+func selectDeltaReducer(r reduce.Reducer) delta.Reducer {
+	switch r.(type) {
+	case *reduce.GrepReducer:
+		return &delta.GrepDelta{}
+	case *reduce.FindReducer:
+		return &delta.FindDelta{}
+	case *reduce.LsReducer:
+		return &delta.LsDelta{}
+	default:
+		return nil
+	}
 }
 
 // injectResultID inserts the result ID into the output header.
@@ -439,6 +543,104 @@ func statsCmd() {
 	if s.RawCalls > 0 {
 		fmt.Printf("raw_calls: %d\n", s.RawCalls)
 		fmt.Printf("raw_returned: %s\n", stats.FormatBytes(s.RawRetBytes))
+	}
+
+	// Session stats.
+	if s.UnchangedCount+s.DeltaCount+s.FullFallbackCount > 0 {
+		fmt.Println()
+		fmt.Printf("unchanged: %d\n", s.UnchangedCount)
+		fmt.Printf("delta:     %d\n", s.DeltaCount)
+		fmt.Printf("full:      %d\n", s.FullFallbackCount)
+	}
+	if s.StatelessBytes > 0 && s.StatefulBytes > 0 {
+		sessionSaved := s.StatelessBytes - s.StatefulBytes
+		var sessionReduction float64
+		if s.StatelessBytes > 0 {
+			sessionReduction = float64(sessionSaved) / float64(s.StatelessBytes) * 100
+		}
+		fmt.Printf("\nstateless: %s\n", stats.FormatBytes(s.StatelessBytes))
+		fmt.Printf("stateful:  %s\n", stats.FormatBytes(s.StatefulBytes))
+		fmt.Printf("session_saved: %s (%.1f%%)\n", stats.FormatBytes(sessionSaved), sessionReduction)
+	}
+}
+
+func sessionCmd(args []string) {
+	if len(args) == 0 || args[0] == "--help" || args[0] == "-h" {
+		fmt.Fprintln(os.Stdout, "Usage: acap session <start|info|list|history>")
+		os.Exit(0)
+	}
+	switch args[0] {
+	case "start":
+		id, err := session.GenerateID()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "acap: session start: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("agentcap-session=%s\n", id)
+		fmt.Printf("export %s=%s\n", session.EnvKey, id)
+	case "info":
+		sess, err := session.Current()
+		if err != nil || sess == nil {
+			fmt.Fprintf(os.Stderr, "acap: no session (set %s)\n", session.EnvKey)
+			os.Exit(1)
+		}
+		records, _ := sess.History().Records()
+		fmt.Printf("session=%s\ncommands=%d\n", sess.ID, len(records))
+	case "list":
+		sessions, err := session.List()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "acap: session list: %v\n", err)
+			os.Exit(1)
+		}
+		if len(sessions) == 0 {
+			fmt.Println("no sessions")
+			return
+		}
+		for _, si := range sessions {
+			age := time.Since(si.Updated).Round(time.Minute)
+			fmt.Printf("%s results=%d updated=%s\n", si.ID, si.Count, formatAge(age))
+		}
+	case "history":
+		historyCmd(args[1:])
+	default:
+		fmt.Fprintf(os.Stderr, "acap: session: unknown subcommand %q\n", args[0])
+		os.Exit(1)
+	}
+}
+
+func historyCmd(args []string) {
+	sess, err := session.Current()
+	if err != nil || sess == nil {
+		fmt.Fprintf(os.Stderr, "acap: no session (set %s)\n", session.EnvKey)
+		os.Exit(1)
+	}
+	records, err := sess.History().Records()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "acap: history: %v\n", err)
+		os.Exit(1)
+	}
+	if len(records) == 0 {
+		fmt.Println("no history")
+		return
+	}
+	for i := len(records) - 1; i >= 0; i-- {
+		r := records[i]
+		// We don't store command text in history, just the key hash.
+		// Show result ID and presentation.
+		fmt.Printf("%d %s ? %s\n", r.Seq, r.ResultID, r.Presentation)
+	}
+}
+
+func formatAge(d time.Duration) string {
+	switch {
+	case d < time.Minute:
+		return "just now"
+	case d < time.Hour:
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%dh", int(d.Hours()))
+	default:
+		return fmt.Sprintf("%dd", int(d.Hours()/24))
 	}
 }
 
