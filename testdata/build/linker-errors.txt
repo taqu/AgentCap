@@ -1,0 +1,3 @@
+/usr/bin/ld: src/main.o: undefined reference to `Workspace::Resolve(std::string const&)'
+/usr/bin/ld: src/parser.o: undefined reference to `Parser::parseNode(int)'
+collect2: error: ld returned 1 exit status

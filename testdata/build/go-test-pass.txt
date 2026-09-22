@@ -1,0 +1,3 @@
+ok  	github.com/taqu/agentcap/internal/clean	0.012s
+ok  	github.com/taqu/agentcap/internal/exec	0.034s
+ok  	github.com/taqu/agentcap/internal/store	0.891s

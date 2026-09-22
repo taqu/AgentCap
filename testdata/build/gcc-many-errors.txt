@@ -1,0 +1,5 @@
+src/parser.cpp:10:5: error: 'Node' was not declared in this scope
+src/parser.cpp:15:9: warning: unused variable 'x' [-Wunused-variable]
+src/parser.cpp:20:3: error: expected ';' before '}' token
+src/workspace.cpp:91:12: error: use of undeclared identifier 'ctx'
+src/index.cpp:201:9: warning: implicit conversion from 'int' to 'float' [-Wimplicit-int-float-conversion]

@@ -44,6 +44,15 @@ func Select(args []string) Reducer {
 		return &WcReducer{}
 	case "git", "git.exe":
 		return SelectGit(args)
+	case "go", "go.exe":
+		return SelectBuild(args)
+	case "gcc", "gcc.exe", "g++", "g++.exe",
+		"clang", "clang.exe", "clang++", "clang++.exe":
+		return SelectBuild(args)
+	case "cargo", "cargo.exe":
+		return SelectBuild(args)
+	case "make", "make.exe", "ninja", "ninja.exe":
+		return SelectBuild(args)
 	default:
 		return &GenericReducer{}
 	}

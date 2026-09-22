@@ -36,6 +36,40 @@ func runMigrations(db *sql.DB, from, to int) error {
 // migrations maps from-version to the function that upgrades to version+1.
 var migrations = map[int]func(*sql.Tx) error{
 	1: migrateV1ToV2,
+	2: migrateV2ToV3,
+}
+
+func migrateV2ToV3(tx *sql.Tx) error {
+	const ddl = `
+CREATE TABLE IF NOT EXISTS diagnostics (
+    result_id        TEXT NOT NULL,
+    diagnostic_index INTEGER NOT NULL,
+    tool             TEXT NOT NULL DEFAULT '',
+    severity         TEXT NOT NULL DEFAULT 'E',
+    code             TEXT NOT NULL DEFAULT '',
+    file             TEXT NOT NULL DEFAULT '',
+    line             INTEGER NOT NULL DEFAULT 0,
+    column_no        INTEGER NOT NULL DEFAULT 0,
+    message          TEXT NOT NULL DEFAULT '',
+    raw_start        INTEGER NOT NULL DEFAULT 0,
+    raw_end          INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (result_id, diagnostic_index)
+);
+
+CREATE TABLE IF NOT EXISTS test_failures (
+    result_id     TEXT NOT NULL,
+    failure_index INTEGER NOT NULL,
+    suite         TEXT NOT NULL DEFAULT '',
+    test_name     TEXT NOT NULL DEFAULT '',
+    file          TEXT NOT NULL DEFAULT '',
+    line          INTEGER NOT NULL DEFAULT 0,
+    panic         INTEGER NOT NULL DEFAULT 0,
+    raw_start     INTEGER NOT NULL DEFAULT 0,
+    raw_end       INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (result_id, failure_index)
+);`
+	_, err := tx.ExecContext(context.Background(), ddl)
+	return err
 }
 
 func migrateV1ToV2(tx *sql.Tx) error {

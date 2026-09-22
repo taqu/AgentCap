@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/taqu/agentcap/internal/buildparse"
 	"github.com/taqu/agentcap/internal/delta"
 	"github.com/taqu/agentcap/internal/exec"
 	"github.com/taqu/agentcap/internal/gitparse"
@@ -187,6 +188,42 @@ func runCmd(args []string) {
 		}
 	}
 
+	// Save build diagnostics / test failures if applicable.
+	if entry != nil && st != nil {
+		switch rv := reducer.(type) {
+		case *reduce.GoBuildReducer:
+			if rv.ParsedBuild != nil && len(rv.ParsedBuild.Diagnostics) > 0 {
+				if err := st.SaveDiagnostics(entry.ID, rv.ParsedBuild.Diagnostics); err != nil && debugMode {
+					fmt.Fprintf(os.Stderr, "acap: warning: save diagnostics: %v\n", err)
+				}
+			}
+		case *reduce.GoTestReducer:
+			if rv.ParsedRun != nil && len(rv.ParsedRun.Failures) > 0 {
+				if err := st.SaveTestFailures(entry.ID, rv.ParsedRun.Failures); err != nil && debugMode {
+					fmt.Fprintf(os.Stderr, "acap: warning: save test failures: %v\n", err)
+				}
+			}
+		case *reduce.GccReducer:
+			if rv.ParsedBuild != nil && len(rv.ParsedBuild.Diagnostics) > 0 {
+				if err := st.SaveDiagnostics(entry.ID, rv.ParsedBuild.Diagnostics); err != nil && debugMode {
+					fmt.Fprintf(os.Stderr, "acap: warning: save diagnostics: %v\n", err)
+				}
+			}
+		case *reduce.CargoBuildReducer:
+			if rv.ParsedBuild != nil && len(rv.ParsedBuild.Diagnostics) > 0 {
+				if err := st.SaveDiagnostics(entry.ID, rv.ParsedBuild.Diagnostics); err != nil && debugMode {
+					fmt.Fprintf(os.Stderr, "acap: warning: save diagnostics: %v\n", err)
+				}
+			}
+		case *reduce.CargoTestReducer:
+			if rv.ParsedRun != nil && len(rv.ParsedRun.Failures) > 0 {
+				if err := st.SaveTestFailures(entry.ID, rv.ParsedRun.Failures); err != nil && debugMode {
+					fmt.Fprintf(os.Stderr, "acap: warning: save test failures: %v\n", err)
+				}
+			}
+		}
+	}
+
 	if sess != nil && baselineEntry != nil && entry != nil {
 		dr := selectDeltaReducer(reducer, st)
 		deltaResult := delta.Compare(
@@ -268,6 +305,16 @@ func selectDeltaReducer(r reduce.Reducer, st *store.Store) delta.Reducer {
 		return &delta.GitStatusDelta{}
 	case *reduce.GitDiffReducer:
 		return &delta.GitDiffDelta{Store: st}
+	case *reduce.GoBuildReducer:
+		return &delta.DiagnosticsDelta{Store: st}
+	case *reduce.GoTestReducer:
+		return &delta.TestResultsDelta{Store: st}
+	case *reduce.GccReducer:
+		return &delta.DiagnosticsDelta{Store: st}
+	case *reduce.CargoBuildReducer:
+		return &delta.DiagnosticsDelta{Store: st}
+	case *reduce.CargoTestReducer:
+		return &delta.TestResultsDelta{Store: st}
 	default:
 		return nil
 	}
@@ -293,8 +340,11 @@ func showCmd(args []string) {
 	pathFlag := fs.String("path", "", "path substring filter")
 	fileFlag := fs.String("file", "", "show file diff (git diff results)")
 	hunkFlag := fs.Int("hunk", 0, "show specific hunk (requires --file, 1-based)")
+	errorsFlag := fs.Bool("errors", false, "show errors for build result")
+	warningsFlag := fs.Bool("warnings", false, "show warnings for build result")
+	testFlag := fs.String("test", "", "show specific test failure")
 	fs.Usage = func() {
-		fmt.Fprintln(os.Stderr, "Usage: acap show <id> [--meta] [--lines X:Y] [--match text] [--path path] [--file path] [--hunk N]")
+		fmt.Fprintln(os.Stderr, "Usage: acap show <id> [--meta] [--lines X:Y] [--match text] [--path path] [--file path] [--hunk N] [--errors] [--warnings] [--test name]")
 	}
 	if err := fs.Parse(args); err != nil {
 		os.Exit(1)
@@ -323,6 +373,12 @@ func showCmd(args []string) {
 	switch {
 	case *fileFlag != "":
 		written = showGitFile(s, entry, *fileFlag, *hunkFlag)
+	case *errorsFlag:
+		written = showBuildErrors(s, entry)
+	case *warningsFlag:
+		written = showBuildWarnings(s, entry)
+	case *testFlag != "":
+		written = showTestFailure(s, entry, *testFlag)
 	case *metaFlag:
 		written = showMeta(entry)
 	case *linesFlag != "":
@@ -418,6 +474,90 @@ func showGitFile(st *store.Store, entry *store.Entry, filePath string, hunkN int
 		os.Exit(1)
 	}
 	return int(n)
+}
+
+func showBuildErrors(st *store.Store, entry *store.Entry) int {
+	diags, err := st.GetDiagnostics(entry.ID)
+	if err != nil || len(diags) == 0 {
+		fmt.Fprintf(os.Stderr, "acap: show --errors: no diagnostic data for %s\n", entry.ID)
+		os.Exit(1)
+	}
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "@acap %s errors\n\n", entry.ID)
+	for _, d := range diags {
+		if d.Severity != buildparse.SeverityError && d.Severity != buildparse.SeverityFatal {
+			continue
+		}
+		if d.File == "(linker)" {
+			fmt.Fprintf(&sb, "E (linker): %s\n", d.Message)
+		} else {
+			code := ""
+			if d.Code != "" {
+				code = "[" + d.Code + "] "
+			}
+			fmt.Fprintf(&sb, "E%s %s:%d:%d\n  %s\n", code, d.File, d.Line, d.Col, d.Message)
+		}
+	}
+	out := sb.String()
+	fmt.Print(out)
+	return len(out)
+}
+
+func showBuildWarnings(st *store.Store, entry *store.Entry) int {
+	diags, err := st.GetDiagnostics(entry.ID)
+	if err != nil || len(diags) == 0 {
+		fmt.Fprintf(os.Stderr, "acap: show --warnings: no diagnostic data for %s\n", entry.ID)
+		os.Exit(1)
+	}
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "@acap %s warnings\n\n", entry.ID)
+	for _, d := range diags {
+		if d.Severity != buildparse.SeverityWarning {
+			continue
+		}
+		code := ""
+		if d.Code != "" {
+			code = "[" + d.Code + "] "
+		}
+		fmt.Fprintf(&sb, "W%s %s:%d %s\n", code, d.File, d.Line, d.Message)
+	}
+	out := sb.String()
+	fmt.Print(out)
+	return len(out)
+}
+
+func showTestFailure(st *store.Store, entry *store.Entry, testName string) int {
+	failures, err := st.GetTestFailures(entry.ID)
+	if err != nil || len(failures) == 0 {
+		fmt.Fprintf(os.Stderr, "acap: show --test: no test failure data for %s\n", entry.ID)
+		os.Exit(1)
+	}
+	var matched *buildparse.TestFailure
+	for i := range failures {
+		f := &failures[i]
+		if f.FullName() == testName || f.Name == testName {
+			matched = f
+			break
+		}
+	}
+	if matched == nil {
+		fmt.Fprintf(os.Stderr, "acap: show --test: test %q not found in result %s\n", testName, entry.ID)
+		os.Exit(1)
+	}
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "@acap %s test=%s\n", entry.ID, matched.FullName())
+	if matched.File != "" {
+		fmt.Fprintf(&sb, "%s:%d\n", matched.File, matched.Line)
+	}
+	if matched.Panic {
+		sb.WriteString("PANIC\n")
+	}
+	for _, l := range matched.Output {
+		fmt.Fprintf(&sb, "%s\n", l)
+	}
+	out := sb.String()
+	fmt.Print(out)
+	return len(out)
 }
 
 func showMeta(entry *store.Entry) int {
@@ -758,7 +898,7 @@ func formatAge(d time.Duration) string {
 }
 
 func reducerTypeName(r reduce.Reducer) string {
-	switch r.(type) {
+	switch rv := r.(type) {
 	case *reduce.LsReducer:
 		return "ls"
 	case *reduce.FindReducer:
@@ -785,6 +925,23 @@ func reducerTypeName(r reduce.Reducer) string {
 		return "git-log"
 	case *reduce.GitBranchReducer:
 		return "git-branch"
+	case *reduce.GoBuildReducer:
+		return "go-build"
+	case *reduce.GoTestReducer:
+		return "go-test"
+	case *reduce.GccReducer:
+		if rv.Tool != "" {
+			return rv.Tool
+		}
+		return "gcc"
+	case *reduce.CargoBuildReducer:
+		return "cargo-build"
+	case *reduce.CargoTestReducer:
+		return "cargo-test"
+	case *reduce.MakeReducer:
+		return "make"
+	case *reduce.NinjaReducer:
+		return "ninja"
 	case *reduce.GenericReducer:
 		return "generic"
 	default:

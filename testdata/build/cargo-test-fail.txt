@@ -1,0 +1,14 @@
+running 3 tests
+test foo::test_a ... ok
+test foo::test_b ... FAILED
+test foo::test_c ... ok
+
+failures:
+
+---- foo::test_b stdout ----
+thread 'foo::test_b' panicked at 'assertion failed: result.is_some()'
+stack backtrace:
+   0: rust_begin_unwind
+   1: core::panicking::panic_fmt
+
+test result: FAILED. 2 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out

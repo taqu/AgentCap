@@ -1,0 +1,19 @@
+error[E0382]: borrow of moved value: `value`
+ --> src/foo.rs:81:17
+  |
+80 |     let owned = value;
+   |                 ----- value moved here
+81 |     println!("{}", value);
+   |                    ^^^^^ value borrowed here after move
+  |
+  = note: move occurs because `value` has type `String`
+
+error[E0277]: the trait bound `Foo: Bar` is not satisfied
+ --> src/bar.rs:91:9
+  |
+91|     impl_trait::<Foo>();
+   |                  ^^^ the trait `Bar` is not implemented for `Foo`
+  |
+  = help: consider implementing `Bar` for `Foo`
+
+error: aborting due to 2 previous errors

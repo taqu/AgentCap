@@ -1,0 +1,4 @@
+src/foo.cpp:42:13: error: no viable conversion from 'int' to 'std::string'
+    std::string s = 42;
+                    ^~
+src/foo.cpp:42:13: note: did you mean to use std::to_string?

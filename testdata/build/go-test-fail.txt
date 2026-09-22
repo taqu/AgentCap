@@ -1,0 +1,9 @@
+ok  	github.com/taqu/agentcap/internal/clean	(cached)
+--- FAIL: TestParseInvalidToken (0.00s)
+    parser_test.go:42: expected TokenIdent, got TokenError
+--- FAIL: TestResolve (0.00s)
+    resolver_test.go:91: got nil, want non-nil result
+FAIL	github.com/taqu/agentcap/internal/parser	0.123s
+ok  	github.com/taqu/agentcap/internal/clean	0.012s
+FAIL	github.com/taqu/agentcap/internal/resolver	0.045s
+FAIL

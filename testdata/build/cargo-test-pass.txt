@@ -1,0 +1,6 @@
+running 3 tests
+test foo::test_a ... ok
+test foo::test_b ... ok
+test foo::test_c ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
