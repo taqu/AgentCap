@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -14,6 +15,11 @@ import (
 	"github.com/taqu/agentcap/internal/delta"
 	"github.com/taqu/agentcap/internal/exec"
 	"github.com/taqu/agentcap/internal/gitparse"
+	"github.com/taqu/agentcap/internal/integration/claude"
+	"github.com/taqu/agentcap/internal/integration/codex"
+	"github.com/taqu/agentcap/internal/integration/common"
+	"github.com/taqu/agentcap/internal/integration/engine"
+	"github.com/taqu/agentcap/internal/integration/protocol"
 	"github.com/taqu/agentcap/internal/project"
 	"github.com/taqu/agentcap/internal/query"
 	"github.com/taqu/agentcap/internal/reduce"
@@ -32,6 +38,10 @@ Usage:
   acap stats
   acap session <start|info|list|history>
   acap history
+  acap exec [--protocol=json]
+  acap hook <claude|codex>
+  acap integrate <claude|codex|status> [--dry-run] [--remove]
+  acap doctor
 
 Examples:
   acap run ls -la
@@ -47,11 +57,15 @@ Examples:
   acap session info
   acap session list
   acap history
+  acap integrate claude
+  acap integrate status
+  acap doctor
 
 Environment:
   ACAP_DEBUG=1        Print reducer debug info to stderr.
   ACAP_SESSION_ID=xx  Enable session-aware delta compression.
   ACAP_ROOT=<path>    Override project root for .acap/store.db discovery.
+  ACAP_BYPASS=1       Skip AgentCap interception entirely.
 `
 
 const runUsage = `Usage: acap run <command> [args...]
@@ -86,6 +100,14 @@ func main() {
 		sessionCmd(args[1:])
 	case "history":
 		historyCmd(args[1:])
+	case "exec":
+		execCmd(args[1:])
+	case "hook":
+		hookCmd(args[1:])
+	case "integrate":
+		integrateCmd(args[1:])
+	case "doctor":
+		doctorCmd(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "acap: unknown command %q\n\n%s", args[0], usage)
 		os.Exit(1)
@@ -895,6 +917,366 @@ func formatAge(d time.Duration) string {
 	default:
 		return fmt.Sprintf("%dd", int(d.Hours()/24))
 	}
+}
+
+// execCmd implements "acap exec [--protocol=json]".
+// Reads a ToolRequest JSON from stdin and writes a ToolResponse JSON to stdout.
+func execCmd(args []string) {
+	fs := flag.NewFlagSet("exec", flag.ExitOnError)
+	protocolFlag := fs.String("protocol", "json", "protocol format (only json supported)")
+	_ = fs.Parse(args)
+
+	if *protocolFlag != "json" {
+		writeToolError(fmt.Sprintf("unsupported protocol: %s", *protocolFlag))
+		os.Exit(1)
+	}
+
+	data, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		writeToolError(fmt.Sprintf("read stdin: %v", err))
+		os.Exit(1)
+	}
+
+	var req protocol.ToolRequest
+	if err := json.Unmarshal(data, &req); err != nil {
+		writeToolError(fmt.Sprintf("parse request: %v", err))
+		os.Exit(1)
+	}
+
+	resp, err := engine.Execute(context.Background(), &req)
+	if err != nil {
+		writeToolError(err.Error())
+		os.Exit(1)
+	}
+
+	out, _ := json.Marshal(resp)
+	fmt.Println(string(out))
+	os.Exit(resp.ExitCode)
+}
+
+func writeToolError(msg string) {
+	resp := protocol.ToolResponse{
+		Protocol: protocol.Version,
+		ExitCode: 1,
+		Error:    msg,
+	}
+	out, _ := json.Marshal(resp)
+	fmt.Println(string(out))
+}
+
+// shellMetaChars contains characters that indicate complex shell expressions.
+const shellMetaChars = "|;&$><`\\"
+
+// hasShellMeta returns true if the command string contains shell metacharacters.
+func hasShellMeta(cmd string) bool {
+	return strings.ContainsAny(cmd, shellMetaChars)
+}
+
+// splitWords performs a simple whitespace split of a command string.
+// Does not handle quoting or escaping — only used for simple commands.
+func splitWords(s string) []string {
+	return strings.Fields(s)
+}
+
+// hookCmd implements "acap hook <claude|codex>".
+func hookCmd(args []string) {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "Usage: acap hook <claude|codex>")
+		os.Exit(1)
+	}
+	adapter := args[0]
+
+	// Check bypass/recursive conditions first.
+	if common.IsBypassed() || common.IsRecursive() {
+		switch adapter {
+		case "claude":
+			os.Stdout.Write(claude.MakeAllowResponse())
+		case "codex":
+			os.Stdout.Write(codex.MakeAllowResponse())
+		}
+		os.Exit(0)
+	}
+
+	switch adapter {
+	case "claude":
+		hookClaudeCmd()
+	case "codex":
+		hookCodexCmd()
+	default:
+		fmt.Fprintf(os.Stderr, "acap: hook: unknown adapter %q\n", adapter)
+		os.Exit(1)
+	}
+}
+
+func hookClaudeCmd() {
+	data, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		os.Stdout.Write(claude.MakeAllowResponse())
+		os.Exit(0)
+	}
+
+	hookInput, err := claude.ParseHookInput(data)
+	if err != nil || hookInput.ToolName != "Bash" {
+		os.Stdout.Write(claude.MakeAllowResponse())
+		os.Exit(0)
+	}
+
+	bashInput, err := claude.ParseBashInput(hookInput.ToolInput)
+	if err != nil {
+		os.Stdout.Write(claude.MakeAllowResponse())
+		os.Exit(0)
+	}
+
+	cmd := bashInput.Command
+
+	// Bypass for shell metacharacters — let original Bash tool handle complex expressions.
+	if hasShellMeta(cmd) {
+		os.Stdout.Write(claude.MakeAllowResponse())
+		os.Exit(0)
+	}
+
+	cmdArgs := splitWords(cmd)
+	if len(cmdArgs) == 0 {
+		os.Stdout.Write(claude.MakeAllowResponse())
+		os.Exit(0)
+	}
+
+	// Bypass for acap commands to prevent recursion.
+	if common.IsAcapCommand(cmdArgs) {
+		os.Stdout.Write(claude.MakeAllowResponse())
+		os.Exit(0)
+	}
+
+	cwd, _ := os.Getwd()
+	sessionID := common.MapAgentSession(hookInput.SessionID)
+
+	req := &protocol.ToolRequest{
+		Protocol:   protocol.Version,
+		Command:    cmdArgs,
+		WorkingDir: cwd,
+		SessionID:  sessionID,
+	}
+
+	resp, err := engine.Execute(context.Background(), req)
+	if err != nil {
+		os.Stdout.Write(claude.MakeAllowResponse())
+		os.Exit(0)
+	}
+
+	blockResp, err := claude.MakeBlockResponse(resp.Stdout)
+	if err != nil {
+		os.Stdout.Write(claude.MakeAllowResponse())
+		os.Exit(0)
+	}
+
+	os.Stdout.Write(blockResp)
+	os.Exit(2)
+}
+
+func hookCodexCmd() {
+	data, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		os.Stdout.Write(codex.MakeAllowResponse())
+		os.Exit(0)
+	}
+
+	hookInput, err := codex.ParseHookInput(data)
+	if err != nil || hookInput.Tool != "shell" {
+		os.Stdout.Write(codex.MakeAllowResponse())
+		os.Exit(0)
+	}
+
+	shellInput, err := codex.ParseShellInput(hookInput.ToolInput)
+	if err != nil {
+		os.Stdout.Write(codex.MakeAllowResponse())
+		os.Exit(0)
+	}
+
+	// Prefer cmdline if available; fall back to cmd string split.
+	var cmdArgs []string
+	if len(shellInput.Cmdline) > 0 {
+		cmdArgs = shellInput.Cmdline
+	} else {
+		cmd := shellInput.Cmd
+		if hasShellMeta(cmd) {
+			os.Stdout.Write(codex.MakeAllowResponse())
+			os.Exit(0)
+		}
+		cmdArgs = splitWords(cmd)
+	}
+
+	if len(cmdArgs) == 0 {
+		os.Stdout.Write(codex.MakeAllowResponse())
+		os.Exit(0)
+	}
+
+	if common.IsAcapCommand(cmdArgs) {
+		os.Stdout.Write(codex.MakeAllowResponse())
+		os.Exit(0)
+	}
+
+	cwd, _ := os.Getwd()
+	sessionID := common.MapAgentSession(hookInput.SessionID)
+
+	req := &protocol.ToolRequest{
+		Protocol:   protocol.Version,
+		Command:    cmdArgs,
+		WorkingDir: cwd,
+		SessionID:  sessionID,
+	}
+
+	resp, err := engine.Execute(context.Background(), req)
+	if err != nil {
+		os.Stdout.Write(codex.MakeAllowResponse())
+		os.Exit(0)
+	}
+
+	blockResp, err := codex.MakeBlockResponse(resp.Stdout)
+	if err != nil {
+		os.Stdout.Write(codex.MakeAllowResponse())
+		os.Exit(0)
+	}
+
+	os.Stdout.Write(blockResp)
+	os.Exit(2)
+}
+
+// integrateCmd implements "acap integrate <claude|codex|status> [--dry-run] [--remove]".
+func integrateCmd(args []string) {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "Usage: acap integrate <claude|codex|status> [--dry-run] [--remove]")
+		os.Exit(1)
+	}
+
+	sub := args[0]
+	rest := args[1:]
+
+	cwd, _ := os.Getwd()
+	root := project.FindRoot(cwd)
+
+	switch sub {
+	case "status":
+		claudeInstalled := claude.IsInstalled(root)
+		codexInstalled := codex.IsInstalled(root)
+		if claudeInstalled {
+			fmt.Println("claude: configured")
+		} else {
+			fmt.Println("claude: not configured")
+		}
+		if codexInstalled {
+			fmt.Println("codex: configured")
+		} else {
+			fmt.Println("codex: not configured")
+		}
+
+	case "claude":
+		fs := flag.NewFlagSet("integrate claude", flag.ExitOnError)
+		dryRun := fs.Bool("dry-run", false, "print what would be done")
+		remove := fs.Bool("remove", false, "remove hook")
+		_ = fs.Parse(rest)
+
+		if *remove {
+			if err := claude.Remove(root); err != nil {
+				fmt.Fprintf(os.Stderr, "acap: integrate claude --remove: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Println("claude: hook removed")
+		} else {
+			if err := claude.Install(root, *dryRun); err != nil {
+				fmt.Fprintf(os.Stderr, "acap: integrate claude: %v\n", err)
+				os.Exit(1)
+			}
+			if !*dryRun {
+				fmt.Println("claude: hook installed")
+			}
+		}
+
+	case "codex":
+		fs := flag.NewFlagSet("integrate codex", flag.ExitOnError)
+		dryRun := fs.Bool("dry-run", false, "print what would be done")
+		remove := fs.Bool("remove", false, "remove hook")
+		_ = fs.Parse(rest)
+
+		if *remove {
+			if err := codex.Remove(root); err != nil {
+				fmt.Fprintf(os.Stderr, "acap: integrate codex --remove: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Println("codex: hook removed")
+		} else {
+			if err := codex.Install(root, *dryRun); err != nil {
+				fmt.Fprintf(os.Stderr, "acap: integrate codex: %v\n", err)
+				os.Exit(1)
+			}
+			if !*dryRun {
+				fmt.Println("codex: hook installed")
+			}
+		}
+
+	default:
+		fmt.Fprintf(os.Stderr, "acap: integrate: unknown adapter %q\n", sub)
+		os.Exit(1)
+	}
+}
+
+// doctorCmd implements "acap doctor" — read-only diagnostic check.
+func doctorCmd(args []string) {
+	_ = args
+
+	// acap binary path.
+	exe, err := os.Executable()
+	if err != nil {
+		fmt.Printf("acap binary: OK (path unknown: %v)\n", err)
+	} else {
+		fmt.Printf("acap binary: OK (running as %s)\n", exe)
+	}
+
+	// Project root.
+	cwd, _ := os.Getwd()
+	root := project.FindRoot(cwd)
+	fmt.Printf("project root: %s\n", root)
+
+	// .acap writable.
+	acapDir := project.AcapDir(root)
+	if err := checkWritable(acapDir); err != nil {
+		fmt.Printf(".acap writable: FAIL (%v)\n", err)
+	} else {
+		fmt.Printf(".acap writable: OK\n")
+	}
+
+	// SQLite store.
+	st, err := store.Open(root)
+	if err != nil {
+		fmt.Printf("SQLite store: FAIL (%v)\n", err)
+	} else {
+		st.Close()
+		fmt.Printf("SQLite store: OK\n")
+	}
+
+	// Claude integration.
+	if claude.IsInstalled(root) {
+		fmt.Printf("claude integration: configured\n")
+	} else {
+		fmt.Printf("claude integration: not configured\n")
+	}
+
+	// Codex integration.
+	if codex.IsInstalled(root) {
+		fmt.Printf("codex integration: configured\n")
+	} else {
+		fmt.Printf("codex integration: not configured\n")
+	}
+}
+
+func checkWritable(dir string) error {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	tmp := dir + "/.acap_write_test"
+	if err := os.WriteFile(tmp, []byte("ok"), 0o644); err != nil {
+		return err
+	}
+	return os.Remove(tmp)
 }
 
 func reducerTypeName(r reduce.Reducer) string {

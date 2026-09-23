@@ -23,6 +23,8 @@ type Options struct {
 	StdoutSink io.Writer
 	// StderrSink, if set, receives a tee of the raw stderr stream (unlimited).
 	StderrSink io.Writer
+	// Dir, if non-empty, sets the working directory for the child process.
+	Dir string
 }
 
 // Result holds the outcome of a completed child execution.
@@ -48,6 +50,9 @@ func Run(ctx context.Context, args []string, opts *Options) (*Result, error) {
 
 	c := exec.CommandContext(ctx, name, rest...)
 	c.Stdin = os.Stdin
+	if opts != nil && opts.Dir != "" {
+		c.Dir = opts.Dir
+	}
 
 	// Limit stdout/stderr capture to MaxOutputBytes.
 	stdoutBuf := &limitedBuffer{limit: MaxOutputBytes}
