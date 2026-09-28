@@ -524,6 +524,6 @@ func presentationCount(presentation, match string) int64 {
 }
 
 func generateID() string {
-	b := rand.Uint32()
-	return fmt.Sprintf("%04x", b)
+	b := rand.Uint32() & 0x00ffffff
+	return fmt.Sprintf("%06x", b)
 }

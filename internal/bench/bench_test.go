@@ -34,6 +34,7 @@ func TestMain(m *testing.M) {
 //	touch <path> append one line to path (observable side effect)
 //	argv         write each remaining arg on its own line, then stop
 //	exit <n>     exit with status n
+//	file <path>  copy a file to stdout
 func runHelper(args []string) int {
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
@@ -51,6 +52,13 @@ func runHelper(args []string) int {
 			}
 			f.WriteString("x\n")
 			f.Close()
+		case "file":
+			i++
+			data, err := os.ReadFile(args[i])
+			if err != nil {
+				return 98
+			}
+			os.Stdout.Write(data)
 		case "argv":
 			for _, a := range args[i+1:] {
 				fmt.Fprintf(os.Stdout, "%s\n", a)
@@ -63,6 +71,145 @@ func runHelper(args []string) int {
 		}
 	}
 	return 0
+}
+
+func TestSessionRepeatedResultAndAggregate(t *testing.T) {
+	root := isolate(t)
+	id, err := StartSession(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	output := strings.Repeat("a useful repeated output line\n", 100)
+	command := helper(t, "out", output)
+	first, err := MeasureSessionCommand(context.Background(), command, root, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := MeasureSessionCommand(context.Background(), command, root, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Presentation != "full" || second.Presentation != "unchanged" {
+		t.Fatalf("presentations = %q, %q", first.Presentation, second.Presentation)
+	}
+	if second.StatefulVisibleBytes >= second.StatelessVisibleBytes {
+		t.Errorf("second stateful/stateless = %d/%d", second.StatefulVisibleBytes, second.StatelessVisibleBytes)
+	}
+	if first.StatelessVisibleBytes != first.StatefulVisibleBytes {
+		t.Errorf("first stateless/stateful = %d/%d", first.StatelessVisibleBytes, first.StatefulVisibleBytes)
+	}
+	agg, err := LoadSession(root, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if agg.CommandCount != 2 || agg.FullCount != 1 || agg.UnchangedCount != 1 || agg.DeltaCount != 0 {
+		t.Errorf("aggregate counts = %+v", agg)
+	}
+	if agg.RawBytes != first.RawBytes+second.RawBytes ||
+		agg.StatelessBytes != first.StatelessVisibleBytes+second.StatelessVisibleBytes ||
+		agg.StatefulBytes != first.StatefulVisibleBytes+second.StatefulVisibleBytes {
+		t.Errorf("aggregate byte totals = %+v", agg)
+	}
+}
+
+func TestSessionChangedResultUsesNormalDeltaDecision(t *testing.T) {
+	root := isolate(t)
+	id, err := StartSession(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixture := filepath.Join(root, "output.txt")
+	base := strings.Repeat("same line\n", 100)
+	if err := os.WriteFile(fixture, []byte(base+"old line\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	command := helper(t, "file", fixture)
+	if _, err := MeasureSessionCommand(context.Background(), command, root, id); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fixture, []byte(base+"new line\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	changed, err := MeasureSessionCommand(context.Background(), command, root, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed.Presentation != "delta" && changed.Presentation != "full" {
+		t.Fatalf("changed presentation = %q", changed.Presentation)
+	}
+	if changed.Presentation == "delta" && changed.StatefulVisibleBytes >= changed.StatelessVisibleBytes {
+		t.Errorf("delta stateful/stateless = %d/%d", changed.StatefulVisibleBytes, changed.StatelessVisibleBytes)
+	}
+}
+
+func TestSessionCommandIdentityAndIsolation(t *testing.T) {
+	root := isolate(t)
+	output := strings.Repeat("identical output\n", 80)
+	one, err := StartSession(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstCommand := helper(t, "out", output)
+	secondCommand := helper(t, "noop", "ignored", "out", output)
+	if _, err := MeasureSessionCommand(context.Background(), firstCommand, root, one); err != nil {
+		t.Fatal(err)
+	}
+	different, err := MeasureSessionCommand(context.Background(), secondCommand, root, one)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if different.Presentation != "full" {
+		t.Errorf("different command presentation = %q, want full", different.Presentation)
+	}
+
+	two, err := StartSession(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	isolated, err := MeasureSessionCommand(context.Background(), firstCommand, root, two)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if isolated.Presentation != "full" {
+		t.Errorf("new session presentation = %q, want full", isolated.Presentation)
+	}
+}
+
+func TestSessionExactlyOnceFailedEmptyAndRecoverable(t *testing.T) {
+	root := isolate(t)
+	id, err := StartSession(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	counter := filepath.Join(root, "session-counter.txt")
+	m, err := MeasureSessionCommand(context.Background(),
+		helper(t, "touch", counter, "out", "failure output\n", "exit", "3"), root, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if countLines(t, counter) != 1 || m.ExitCode != 3 {
+		t.Errorf("side effects=%d exit=%d", countLines(t, counter), m.ExitCode)
+	}
+	empty, err := MeasureSessionCommand(context.Background(), helper(t), root, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if empty.RawBytes != 0 {
+		t.Errorf("empty RawBytes = %d", empty.RawBytes)
+	}
+	st, err := store.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	entry, err := st.Open(m.ResultID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(entry.StdoutPath())
+	if err != nil || string(raw) != "failure output\n" {
+		t.Errorf("stored raw = %q, err=%v", raw, err)
+	}
 }
 
 func helper(t *testing.T, actions ...string) []string {
@@ -80,6 +227,8 @@ func isolate(t *testing.T) string {
 	root := t.TempDir()
 	t.Setenv("ACAP_ROOT", root)
 	t.Setenv("ACAP_SESSION_ID", "")
+	t.Setenv("LOCALAPPDATA", root)
+	t.Setenv("XDG_CACHE_HOME", root)
 	return root
 }
 
@@ -119,7 +268,7 @@ func TestMeasureInvokesPipelineOnce(t *testing.T) {
 		calls++
 		return engine.Run(ctx, req)
 	}
-	if _, err := measure(context.Background(), counting, helper(t, "out", "x"), t.TempDir()); err != nil {
+	if _, err := measure(context.Background(), counting, helper(t, "out", "x"), t.TempDir(), ""); err != nil {
 		t.Fatal(err)
 	}
 	if calls != 1 {
@@ -135,7 +284,7 @@ func TestMeasureIsStateless(t *testing.T) {
 		return engine.Run(ctx, req)
 	}
 	t.Setenv("ACAP_SESSION_ID", "some-session")
-	m, err := measure(context.Background(), spy, helper(t, "out", "x"), t.TempDir())
+	m, err := measure(context.Background(), spy, helper(t, "out", "x"), t.TempDir(), "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -270,6 +419,30 @@ func TestZeroOutputCommand(t *testing.T) {
 	}
 	if v, present := obj["reduction_ratio"]; !present || v != nil {
 		t.Errorf("reduction_ratio = %v (present=%v), want null", v, present)
+	}
+}
+
+func TestSessionReportZeroDenominators(t *testing.T) {
+	m := &SessionMeasurement{SessionID: "empty"}
+	var text bytes.Buffer
+	if err := WriteSessionText(&text, m); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(text.String(), "n/a") != 3 {
+		t.Errorf("zero-denominator report:\n%s", text.String())
+	}
+	var js bytes.Buffer
+	if err := WriteSessionJSON(&js, m); err != nil {
+		t.Fatal(err)
+	}
+	var obj map[string]any
+	if err := json.Unmarshal(js.Bytes(), &obj); err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"stateless_vs_raw", "stateful_vs_raw", "stateful_vs_stateless"} {
+		if obj[key] != nil {
+			t.Errorf("%s = %v, want null", key, obj[key])
+		}
 	}
 }
 

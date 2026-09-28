@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-const currentSchemaVersion = 3
+const currentSchemaVersion = 4
 
 const schemaV1 = `
 CREATE TABLE IF NOT EXISTS schema_info (

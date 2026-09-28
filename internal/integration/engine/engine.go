@@ -33,6 +33,12 @@ func Execute(ctx context.Context, req *protocol.ToolRequest) (*protocol.ToolResp
 type Outcome struct {
 	Response *protocol.ToolResponse
 
+	// StatelessPresentation is the fully rendered AgentCap presentation before
+	// session comparison. It includes the same result-ID injection as Response
+	// and is derived from the same captured execution. For a stateless request
+	// it is identical to Response.Stdout.
+	StatelessPresentation string
+
 	// Exec is the captured child result the response was derived from.
 	// Nil when the command could not be started or no command was given.
 	Exec *exec.Result
@@ -206,11 +212,14 @@ func Run(ctx context.Context, req *protocol.ToolRequest) (*Outcome, error) {
 		}
 	}
 
-	// Determine presentation.
+	// Determine presentation. Keep the full reduced form so observers can
+	// measure the real pre-delta presentation without executing or reducing the
+	// command a second time.
 	output := ""
 	if reduced != nil {
 		output = reduced.Output
 	}
+	statelessOutput := output
 	presentation := string(delta.PresentationFull)
 
 	if sess != nil && baselineEntry != nil && entry != nil && reduced != nil {
@@ -242,6 +251,7 @@ func Run(ctx context.Context, req *protocol.ToolRequest) (*Outcome, error) {
 	if entry != nil {
 		resultID = entry.ID
 		output = injectResultID(output, entry.ID)
+		statelessOutput = injectResultID(statelessOutput, entry.ID)
 	}
 
 	// Record in session history.
@@ -264,10 +274,11 @@ func Run(ctx context.Context, req *protocol.ToolRequest) (*Outcome, error) {
 		Presentation: presentation,
 	}
 	return &Outcome{
-		Response:           resp,
-		Exec:               result,
-		ReduceDuration:     reduceDuration,
-		ProcessingDuration: time.Since(processStart),
+		Response:              resp,
+		StatelessPresentation: statelessOutput,
+		Exec:                  result,
+		ReduceDuration:        reduceDuration,
+		ProcessingDuration:    time.Since(processStart),
 	}, nil
 }
 
@@ -360,4 +371,3 @@ func selectDeltaReducer(r reduce.Reducer, st *store.Store) delta.Reducer {
 		return nil
 	}
 }
-

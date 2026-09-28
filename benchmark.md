@@ -1,5 +1,22 @@
 # AgentCap Benchmark CLI Roadmap
 
+## Implemented through Phase B2
+
+Stateful sessions use the following manual workflow (workload files remain a
+future phase):
+
+```bash
+session=$(acap bench session start)
+acap bench command --session "$session" -- <command...>
+acap bench session show "$session"
+```
+
+Each session is both a benchmark aggregation boundary and a fresh normal
+AgentCap session boundary. Measurements are persisted in the project `.acap`
+store, while baseline selection uses the existing persistent session history.
+Commands execute once; raw, pre-delta full presentation, and post-delta actual
+presentation sizes are observed from that one pipeline pass.
+
 ## Goal
 
 新しい CLI を、たとえば次の形で用意します。

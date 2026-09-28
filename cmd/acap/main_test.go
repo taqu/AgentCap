@@ -62,7 +62,7 @@ func acap(t *testing.T, root string, args ...string) (string, int) {
 	}
 	cmd := exec.Command(exe, args...)
 	cmd.Dir = root
-	cmd.Env = append(os.Environ(), "ACAP_TEST_AS_CLI=1", "ACAP_ROOT="+root, "ACAP_SESSION_ID=")
+	cmd.Env = append(os.Environ(), "ACAP_TEST_AS_CLI=1", "ACAP_ROOT="+root, "ACAP_SESSION_ID=", "LOCALAPPDATA="+root, "XDG_CACHE_HOME="+root)
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
@@ -153,10 +153,83 @@ func TestBenchCommandNotFound(t *testing.T) {
 
 func TestBenchHelp(t *testing.T) {
 	root := t.TempDir()
-	for _, args := range [][]string{{"bench", "--help"}, {"bench", "command", "--help"}} {
+	for _, args := range [][]string{{"bench", "--help"}, {"bench", "command", "--help"}, {"bench", "session", "--help"}} {
 		out, code := acap(t, root, args...)
-		if code != 0 || !strings.Contains(out, "single command") {
+		if code != 0 || (!strings.Contains(out, "single command") && !strings.Contains(out, "benchmark session")) {
 			t.Errorf("%v: exit %d, output:\n%s", args, code, out)
 		}
+	}
+}
+
+func TestBenchSessionPersistsAcrossCLIInvocations(t *testing.T) {
+	root := t.TempDir()
+	started, code := acap(t, root, "bench", "session", "start")
+	if code != 0 {
+		t.Fatalf("start exit=%d output=%q", code, started)
+	}
+	id := strings.TrimSpace(started)
+	if !strings.HasPrefix(id, "bench-") {
+		t.Fatalf("session ID = %q", id)
+	}
+	exe, _ := os.Executable()
+	output := strings.Repeat("cross process output line\n", 100)
+	var second struct {
+		Presentation          string `json:"presentation"`
+		StatelessVisibleBytes int64  `json:"stateless_visible_bytes"`
+		StatefulVisibleBytes  int64  `json:"stateful_visible_bytes"`
+		ResultID              string `json:"result_id"`
+	}
+	for i := 0; i < 2; i++ {
+		out, commandCode := acap(t, root, "bench", "command", "--json", "--session", id, "--",
+			exe, helperArg, "out", output)
+		if commandCode != 0 {
+			t.Fatalf("command %d exit=%d output=%s", i+1, commandCode, out)
+		}
+		if i == 1 {
+			if err := json.Unmarshal([]byte(out), &second); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if second.Presentation != "unchanged" || second.StatefulVisibleBytes >= second.StatelessVisibleBytes {
+		t.Errorf("second measurement = %+v", second)
+	}
+	shown, code := acap(t, root, "bench", "session", "show", "--json", id)
+	if code != 0 {
+		t.Fatalf("show exit=%d output=%s", code, shown)
+	}
+	var summary struct {
+		CommandCount   int `json:"command_count"`
+		FullCount      int `json:"full_count"`
+		UnchangedCount int `json:"unchanged_count"`
+	}
+	if err := json.Unmarshal([]byte(shown), &summary); err != nil {
+		t.Fatal(err)
+	}
+	if summary.CommandCount != 2 || summary.FullCount != 1 || summary.UnchangedCount != 1 {
+		t.Errorf("summary = %+v", summary)
+	}
+	raw, code := acap(t, root, "raw", second.ResultID)
+	if code != 0 || raw != output {
+		t.Errorf("raw recovery exit=%d len=%d", code, len(raw))
+	}
+}
+
+func TestBenchSessionCommandExecutesOnce(t *testing.T) {
+	root := t.TempDir()
+	started, code := acap(t, root, "bench", "session", "start")
+	if code != 0 {
+		t.Fatal(started)
+	}
+	counter := filepath.Join(root, "session-cli-counter.txt")
+	exe, _ := os.Executable()
+	_, code = acap(t, root, "bench", "command", "--session", strings.TrimSpace(started), "--",
+		exe, helperArg, "touch", counter, "out", "once\n")
+	if code != 0 {
+		t.Fatalf("command exit=%d", code)
+	}
+	data, err := os.ReadFile(counter)
+	if err != nil || strings.Count(string(data), "\n") != 1 {
+		t.Fatalf("counter=%q err=%v", data, err)
 	}
 }

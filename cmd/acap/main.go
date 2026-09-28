@@ -38,7 +38,8 @@ Usage:
   acap raw  <id> [--stdout|--stderr]
   acap clean [--older-than <duration>]
   acap stats
-  acap bench command [--json] -- <command> [args...]
+  acap bench command [--json] [--session <id>] -- <command> [args...]
+  acap bench session <start|show>
   acap session <start|info|list|history>
   acap history
   acap exec [--protocol=json]
@@ -57,6 +58,7 @@ Examples:
   acap raw  8f31c2 --stderr
   acap clean --older-than 7d
   acap bench command -- git diff
+  acap bench session start
   acap session start
   acap session info
   acap session list
@@ -82,12 +84,13 @@ preserved.
 const benchUsage = `Usage: acap bench <subcommand>
 
 Subcommands:
-  command   Benchmark a single command execution.
+  command   Benchmark a single command, optionally inside a benchmark session.
+  session   Start or inspect a persistent stateful benchmark session.
 
-Run "acap bench command --help" for details.
+Run "acap bench command --help" or "acap bench session --help" for details.
 `
 
-const benchCommandUsage = `Usage: acap bench command [--json] -- <command> [args...]
+const benchCommandUsage = `Usage: acap bench command [--json] [--session <id>] -- <command> [args...]
 
 Executes <command> exactly once through the normal AgentCap pipeline
 (no shell interpretation) and reports:
@@ -103,10 +106,23 @@ Reduction is the reduction in agent-visible bytes for this one command.
 It is not a workflow-level or end-to-end agent savings figure.
 
 The measurement is stateless: no session delta is applied, even if
-ACAP_SESSION_ID is set. The benchmark exits with the command's exit code.
+ACAP_SESSION_ID is set, unless --session names a benchmark session. In session
+mode, stateless bytes are the real full presentation and stateful bytes are the
+normal delta/unchanged presentation from the same execution. The benchmark
+exits with the command's exit code.
 
 Flags:
-  --json    Print the measurement as JSON.
+  --json          Print the measurement as JSON.
+  --session <id>  Add this execution to a stateful benchmark session.
+`
+
+const benchSessionUsage = `Usage:
+  acap bench session start [--json]
+  acap bench session show [--json] <id>
+
+Each benchmark session maps to one fresh AgentCap session, persists across CLI
+invocations, and has an isolated baseline. "show" reports cumulative raw,
+stateless full-presentation, and actual stateful-presentation bytes.
 `
 
 var debugMode = os.Getenv("ACAP_DEBUG") == "1"
@@ -883,6 +899,8 @@ func benchCmd(args []string) {
 	switch args[0] {
 	case "command":
 		benchCommandCmd(args[1:])
+	case "session":
+		benchSessionCmd(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "acap: bench: unknown subcommand %q\n\n%s", args[0], benchUsage)
 		os.Exit(1)
@@ -892,6 +910,7 @@ func benchCmd(args []string) {
 func benchCommandCmd(args []string) {
 	fs := flag.NewFlagSet("bench command", flag.ExitOnError)
 	jsonFlag := fs.Bool("json", false, "print measurement as JSON")
+	sessionFlag := fs.String("session", "", "benchmark session ID")
 	fs.Usage = func() { fmt.Fprint(os.Stderr, benchCommandUsage) }
 	if len(args) > 0 && (args[0] == "--help" || args[0] == "-h") {
 		fmt.Fprint(os.Stdout, benchCommandUsage)
@@ -907,7 +926,13 @@ func benchCommandCmd(args []string) {
 	}
 
 	cwd, _ := os.Getwd()
-	m, err := bench.MeasureCommand(context.Background(), target, cwd)
+	var m *bench.Measurement
+	var err error
+	if *sessionFlag == "" {
+		m, err = bench.MeasureCommand(context.Background(), target, cwd)
+	} else {
+		m, err = bench.MeasureSessionCommand(context.Background(), target, cwd, *sessionFlag)
+	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "acap: bench: %v\n", err)
 		var ee *bench.ExecError
@@ -927,6 +952,65 @@ func benchCommandCmd(args []string) {
 		os.Exit(1)
 	}
 	os.Exit(m.ExitCode)
+}
+
+func benchSessionCmd(args []string) {
+	if len(args) == 0 || args[0] == "--help" || args[0] == "-h" {
+		fmt.Fprint(os.Stdout, benchSessionUsage)
+		os.Exit(0)
+	}
+	cwd, _ := os.Getwd()
+	switch args[0] {
+	case "start":
+		fs := flag.NewFlagSet("bench session start", flag.ExitOnError)
+		jsonFlag := fs.Bool("json", false, "print session as JSON")
+		fs.Usage = func() { fmt.Fprint(os.Stderr, benchSessionUsage) }
+		if err := fs.Parse(args[1:]); err != nil {
+			os.Exit(1)
+		}
+		if len(fs.Args()) != 0 {
+			fs.Usage()
+			os.Exit(1)
+		}
+		id, err := bench.StartSession(cwd)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "acap: bench session start: %v\n", err)
+			os.Exit(1)
+		}
+		if *jsonFlag {
+			_ = json.NewEncoder(os.Stdout).Encode(map[string]string{"session_id": id})
+		} else {
+			fmt.Println(id)
+		}
+	case "show":
+		fs := flag.NewFlagSet("bench session show", flag.ExitOnError)
+		jsonFlag := fs.Bool("json", false, "print summary as JSON")
+		fs.Usage = func() { fmt.Fprint(os.Stderr, benchSessionUsage) }
+		if err := fs.Parse(args[1:]); err != nil {
+			os.Exit(1)
+		}
+		if len(fs.Args()) != 1 {
+			fs.Usage()
+			os.Exit(1)
+		}
+		m, err := bench.LoadSession(cwd, fs.Args()[0])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "acap: bench session show: %v\n", err)
+			os.Exit(1)
+		}
+		if *jsonFlag {
+			err = bench.WriteSessionJSON(os.Stdout, m)
+		} else {
+			err = bench.WriteSessionText(os.Stdout, m)
+		}
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "acap: bench session show: %v\n", err)
+			os.Exit(1)
+		}
+	default:
+		fmt.Fprintf(os.Stderr, "acap: bench session: unknown subcommand %q\n\n%s", args[0], benchSessionUsage)
+		os.Exit(1)
+	}
 }
 
 func sessionCmd(args []string) {

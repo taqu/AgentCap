@@ -37,6 +37,38 @@ func runMigrations(db *sql.DB, from, to int) error {
 var migrations = map[int]func(*sql.Tx) error{
 	1: migrateV1ToV2,
 	2: migrateV2ToV3,
+	3: migrateV3ToV4,
+}
+
+func migrateV3ToV4(tx *sql.Tx) error {
+	const ddl = `
+CREATE TABLE IF NOT EXISTS benchmark_sessions (
+    id         TEXT PRIMARY KEY,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS benchmark_measurements (
+    session_id             TEXT NOT NULL,
+    sequence               INTEGER NOT NULL,
+    result_id              TEXT NOT NULL,
+    command_json           TEXT NOT NULL DEFAULT '[]',
+    exit_code              INTEGER NOT NULL DEFAULT 0,
+    raw_stdout_bytes       INTEGER NOT NULL DEFAULT 0,
+    raw_stderr_bytes       INTEGER NOT NULL DEFAULT 0,
+    raw_bytes              INTEGER NOT NULL DEFAULT 0,
+    stateless_bytes        INTEGER NOT NULL DEFAULT 0,
+    stateful_bytes         INTEGER NOT NULL DEFAULT 0,
+    presentation           TEXT NOT NULL DEFAULT 'full',
+    truncated              INTEGER NOT NULL DEFAULT 0,
+    execution_duration_ns  INTEGER NOT NULL DEFAULT 0,
+    reduce_duration_ns     INTEGER NOT NULL DEFAULT 0,
+    processing_duration_ns INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (session_id, sequence),
+    UNIQUE (result_id),
+    FOREIGN KEY (session_id) REFERENCES benchmark_sessions(id)
+);`
+	_, err := tx.ExecContext(context.Background(), ddl)
+	return err
 }
 
 func migrateV2ToV3(tx *sql.Tx) error {
