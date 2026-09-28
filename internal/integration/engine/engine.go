@@ -20,12 +20,42 @@ import (
 // compressed tool response. It is fail-open: if storage or session logic fails,
 // it still returns the command's output.
 func Execute(ctx context.Context, req *protocol.ToolRequest) (*protocol.ToolResponse, error) {
+	out, err := Run(ctx, req)
+	if out == nil {
+		return nil, err
+	}
+	return out.Response, err
+}
+
+// Outcome is the result of one pass through the pipeline, together with the
+// captured execution it was derived from and timings for observers such as
+// the benchmark layer. Response is exactly what Execute returns.
+type Outcome struct {
+	Response *protocol.ToolResponse
+
+	// Exec is the captured child result the response was derived from.
+	// Nil when the command could not be started or no command was given.
+	Exec *exec.Result
+
+	// ReduceDuration is the wall time spent in reducer.Reduce only.
+	ReduceDuration time.Duration
+
+	// ProcessingDuration is the wall time from child exit (exec.Run
+	// returning) until Response is fully built. It covers reduction,
+	// hashing, result/object storage, metadata updates, delta comparison,
+	// result-ID injection, session history and stats recording.
+	ProcessingDuration time.Duration
+}
+
+// Run is Execute, but also returns the captured execution and timings.
+// The command is executed exactly once.
+func Run(ctx context.Context, req *protocol.ToolRequest) (*Outcome, error) {
 	if len(req.Command) == 0 {
-		return &protocol.ToolResponse{
+		return &Outcome{Response: &protocol.ToolResponse{
 			Protocol: protocol.Version,
 			ExitCode: 1,
 			Error:    "no command specified",
-		}, nil
+		}}, nil
 	}
 
 	startTime := time.Now().UTC()
@@ -48,17 +78,20 @@ func Execute(ctx context.Context, req *protocol.ToolRequest) (*protocol.ToolResp
 			stdout = string(result.Stdout)
 			stderr = string(result.Stderr)
 		}
-		return &protocol.ToolResponse{
+		return &Outcome{Response: &protocol.ToolResponse{
 			Protocol: protocol.Version,
 			ExitCode: exitCode,
 			Stdout:   stdout,
 			Stderr:   stderr,
 			Error:    execErr.Error(),
-		}, nil
+		}}, nil
 	}
+
+	processStart := time.Now()
 
 	// Reduce output.
 	reducer := reduce.Select(req.Command)
+	reduceStart := time.Now()
 	reduced := func() (r *reduce.ReducedResult) {
 		defer func() {
 			if rec := recover(); rec != nil {
@@ -72,6 +105,7 @@ func Execute(ctx context.Context, req *protocol.ToolRequest) (*protocol.ToolResp
 		}()
 		return reducer.Reduce(result)
 	}()
+	reduceDuration := time.Since(reduceStart)
 
 	// Compute hashes.
 	stdoutHash := delta.HashBytes(result.Stdout)
@@ -221,13 +255,19 @@ func Execute(ctx context.Context, req *protocol.ToolRequest) (*protocol.ToolResp
 		_ = st.RecordRun(reduced.RawBytes, reduced.RetBytes, len(output), presentation)
 	}
 
-	return &protocol.ToolResponse{
+	resp := &protocol.ToolResponse{
 		Protocol:     protocol.Version,
 		ResultID:     resultID,
 		ExitCode:     result.ExitCode,
 		Stdout:       output,
 		Stderr:       string(result.Stderr),
 		Presentation: presentation,
+	}
+	return &Outcome{
+		Response:           resp,
+		Exec:               result,
+		ReduceDuration:     reduceDuration,
+		ProcessingDuration: time.Since(processStart),
 	}, nil
 }
 

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/taqu/agentcap/internal/bench"
 	"github.com/taqu/agentcap/internal/buildparse"
 	"github.com/taqu/agentcap/internal/delta"
 	"github.com/taqu/agentcap/internal/exec"
@@ -36,6 +38,7 @@ Usage:
   acap raw  <id> [--stdout|--stderr]
   acap clean [--older-than <duration>]
   acap stats
+  acap bench command [--json] -- <command> [args...]
   acap session <start|info|list|history>
   acap history
   acap exec [--protocol=json]
@@ -53,6 +56,7 @@ Examples:
   acap show 8f31c2 --match "func "
   acap raw  8f31c2 --stderr
   acap clean --older-than 7d
+  acap bench command -- git diff
   acap session start
   acap session info
   acap session list
@@ -73,6 +77,36 @@ const runUsage = `Usage: acap run <command> [args...]
 Executes <command> directly (no shell interpretation), reduces the output
 for LLM consumption, and writes it to stdout.  The child's exit code is
 preserved.
+`
+
+const benchUsage = `Usage: acap bench <subcommand>
+
+Subcommands:
+  command   Benchmark a single command execution.
+
+Run "acap bench command --help" for details.
+`
+
+const benchCommandUsage = `Usage: acap bench command [--json] -- <command> [args...]
+
+Executes <command> exactly once through the normal AgentCap pipeline
+(no shell interpretation) and reports:
+
+  raw        bytes the command wrote to stdout and stderr
+  visible    bytes of the AgentCap result presentation an agent receives
+  reduction  1 - visible/raw for this single command ("n/a" if raw is 0)
+  duration   command execution time (process start to exit)
+  processing AgentCap post-execution time, including reduction and storage
+  id         stored result ID, inspectable with "acap show" / "acap raw"
+
+Reduction is the reduction in agent-visible bytes for this one command.
+It is not a workflow-level or end-to-end agent savings figure.
+
+The measurement is stateless: no session delta is applied, even if
+ACAP_SESSION_ID is set. The benchmark exits with the command's exit code.
+
+Flags:
+  --json    Print the measurement as JSON.
 `
 
 var debugMode = os.Getenv("ACAP_DEBUG") == "1"
@@ -96,6 +130,8 @@ func main() {
 		cleanCmd(args[1:])
 	case "stats":
 		statsCmd()
+	case "bench":
+		benchCmd(args[1:])
 	case "session":
 		sessionCmd(args[1:])
 	case "history":
@@ -837,6 +873,60 @@ func statsCmd() {
 		fmt.Printf("stateful:  %s\n", stats.FormatBytes(s.StatefulBytes))
 		fmt.Printf("session_saved: %s (%.1f%%)\n", stats.FormatBytes(sessionSaved), sessionReduction)
 	}
+}
+
+func benchCmd(args []string) {
+	if len(args) == 0 || args[0] == "--help" || args[0] == "-h" {
+		fmt.Fprint(os.Stdout, benchUsage)
+		os.Exit(0)
+	}
+	switch args[0] {
+	case "command":
+		benchCommandCmd(args[1:])
+	default:
+		fmt.Fprintf(os.Stderr, "acap: bench: unknown subcommand %q\n\n%s", args[0], benchUsage)
+		os.Exit(1)
+	}
+}
+
+func benchCommandCmd(args []string) {
+	fs := flag.NewFlagSet("bench command", flag.ExitOnError)
+	jsonFlag := fs.Bool("json", false, "print measurement as JSON")
+	fs.Usage = func() { fmt.Fprint(os.Stderr, benchCommandUsage) }
+	if len(args) > 0 && (args[0] == "--help" || args[0] == "-h") {
+		fmt.Fprint(os.Stdout, benchCommandUsage)
+		os.Exit(0)
+	}
+	if err := fs.Parse(args); err != nil {
+		os.Exit(1)
+	}
+	target := fs.Args()
+	if len(target) == 0 {
+		fs.Usage()
+		os.Exit(1)
+	}
+
+	cwd, _ := os.Getwd()
+	m, err := bench.MeasureCommand(context.Background(), target, cwd)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "acap: bench: %v\n", err)
+		var ee *bench.ExecError
+		if errors.As(err, &ee) && ee.ExitCode != 0 {
+			os.Exit(ee.ExitCode)
+		}
+		os.Exit(1)
+	}
+
+	if *jsonFlag {
+		err = bench.WriteJSON(os.Stdout, m)
+	} else {
+		err = bench.WriteText(os.Stdout, m)
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "acap: bench: %v\n", err)
+		os.Exit(1)
+	}
+	os.Exit(m.ExitCode)
 }
 
 func sessionCmd(args []string) {
