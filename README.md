@@ -75,6 +75,24 @@ This deterministic benchmark measures AgentCap output bytes and processing
 time. It does not measure tokens, task success, model quality, or coding-agent
 accuracy.
 
+### Reproducible workloads
+
+```bash
+acap bench run benchmarks/workloads/git/repeated-diff.yaml
+acap bench run --verbose benchmarks/workloads/build/compile-fix.yaml
+```
+
+Workloads use a versioned YAML schema and run in a fresh disposable copy of a
+self-contained fixture. Each invocation also gets a fresh stateful benchmark
+session. Structured `run` steps use the B2 measurement path exactly once;
+`copy`, `write`, `remove`, and `mkdir` steps are unmeasured deterministic
+workspace mutations. Non-zero command exits are allowed and can be checked with
+`expect.exit`.
+
+See [benchmarks/README.md](benchmarks/README.md) for the schema, fixture and Git
+setup semantics, path restrictions, bundled workloads, result inspection, and
+the `--keep-workspace` debugging option.
+
 ## Debug
 
 ```bash

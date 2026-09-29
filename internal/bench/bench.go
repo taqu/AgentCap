@@ -123,10 +123,17 @@ func StartSession(dir string) (string, error) {
 // MeasureSessionCommand executes args once through a benchmark session and
 // persists the resulting measurement for cross-process aggregation.
 func MeasureSessionCommand(ctx context.Context, args []string, dir, sessionID string) (*Measurement, error) {
+	return MeasureSessionCommandAt(ctx, args, dir, dir, sessionID)
+}
+
+// MeasureSessionCommandAt is MeasureSessionCommand with an explicit persistent
+// store root. It lets reproducible workloads execute inside a disposable
+// workspace while keeping normal AgentCap results in the invoking project.
+func MeasureSessionCommandAt(ctx context.Context, args []string, dir, storeRoot, sessionID string) (*Measurement, error) {
 	if sessionID == "" {
 		return nil, errors.New("benchmark session ID is required")
 	}
-	root := project.FindRoot(dir)
+	root := project.FindRoot(storeRoot)
 	st, err := store.Open(root)
 	if err != nil {
 		return nil, err
@@ -140,7 +147,7 @@ func MeasureSessionCommand(ctx context.Context, args []string, dir, sessionID st
 		return nil, fmt.Errorf("benchmark session %q not found", sessionID)
 	}
 
-	m, err := measure(ctx, engine.Run, args, dir, sessionID)
+	m, err := measureAt(ctx, engine.Run, args, dir, root, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -165,6 +172,10 @@ func MeasureSessionCommand(ctx context.Context, args []string, dir, sessionID st
 type runFunc func(context.Context, *protocol.ToolRequest) (*engine.Outcome, error)
 
 func measure(ctx context.Context, run runFunc, args []string, dir, sessionID string) (*Measurement, error) {
+	return measureAt(ctx, run, args, dir, "", sessionID)
+}
+
+func measureAt(ctx context.Context, run runFunc, args []string, dir, storeRoot, sessionID string) (*Measurement, error) {
 	if len(args) == 0 {
 		return nil, errors.New("no command specified")
 	}
@@ -172,6 +183,7 @@ func measure(ctx context.Context, run runFunc, args []string, dir, sessionID str
 		Protocol:   protocol.Version,
 		Command:    args,
 		WorkingDir: dir,
+		StoreRoot:  storeRoot,
 		SessionID:  sessionID,
 	}
 	out, err := run(ctx, req)

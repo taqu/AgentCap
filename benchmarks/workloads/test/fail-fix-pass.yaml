@@ -1,0 +1,19 @@
+version: 1
+name: test/fail-fix-pass
+fixture: ../../fixtures/fail-fix-pass
+steps:
+  - run:
+      argv: ["go", "test", "-count=1", "."]
+      expect:
+        exit: 1
+  - copy:
+      from: .states/pass_test.go.txt
+      to: value_test.go
+  - run:
+      argv: ["go", "test", "-count=1", "."]
+      expect:
+        exit: 0
+  - run:
+      argv: ["go", "test", "-count=1", "."]
+      expect:
+        exit: 0

@@ -1,0 +1,31 @@
+version: 1
+name: git/repeated-diff
+fixture: ../../fixtures/git-repeated-diff
+git:
+  init: true
+steps:
+  - write:
+      path: main.go
+      content: |
+        package main
+
+        import "fmt"
+
+        func main() {
+        	fmt.Println("first change")
+        }
+  - run:
+      argv: ["git", "diff", "--", "main.go"]
+      expect:
+        exit: 0
+  - copy:
+      from: .states/second.go.txt
+      to: main.go
+  - run:
+      argv: ["git", "diff", "--", "main.go"]
+      expect:
+        exit: 0
+  - run:
+      argv: ["git", "diff", "--", "main.go"]
+      expect:
+        exit: 0

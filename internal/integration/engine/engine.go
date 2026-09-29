@@ -157,7 +157,10 @@ func Run(ctx context.Context, req *protocol.ToolRequest) (*Outcome, error) {
 	}
 
 	// Open store — fail-open if it fails.
-	root := project.FindRoot(workDir)
+	root := req.StoreRoot
+	if root == "" {
+		root = project.FindRoot(workDir)
+	}
 	st, storeInitErr := store.Open(root)
 	if storeInitErr == nil {
 		defer st.Close()

@@ -28,6 +28,7 @@ import (
 	"github.com/taqu/agentcap/internal/session"
 	"github.com/taqu/agentcap/internal/stats"
 	"github.com/taqu/agentcap/internal/store"
+	"github.com/taqu/agentcap/internal/workload"
 )
 
 const usage = `acap — command output compression layer for AI coding agents
@@ -40,6 +41,7 @@ Usage:
   acap stats
   acap bench command [--json] [--session <id>] -- <command> [args...]
   acap bench session <start|show>
+  acap bench run [--verbose] [--keep-workspace] <workload.yaml>
   acap session <start|info|list|history>
   acap history
   acap exec [--protocol=json]
@@ -59,6 +61,7 @@ Examples:
   acap clean --older-than 7d
   acap bench command -- git diff
   acap bench session start
+  acap bench run benchmarks/workloads/git/repeated-diff.yaml
   acap session start
   acap session info
   acap session list
@@ -86,8 +89,9 @@ const benchUsage = `Usage: acap bench <subcommand>
 Subcommands:
   command   Benchmark a single command, optionally inside a benchmark session.
   session   Start or inspect a persistent stateful benchmark session.
+  run       Run a reproducible workload in an isolated temporary workspace.
 
-Run "acap bench command --help" or "acap bench session --help" for details.
+Run "acap bench <subcommand> --help" for details.
 `
 
 const benchCommandUsage = `Usage: acap bench command [--json] [--session <id>] -- <command> [args...]
@@ -123,6 +127,20 @@ const benchSessionUsage = `Usage:
 Each benchmark session maps to one fresh AgentCap session, persists across CLI
 invocations, and has an isolated baseline. "show" reports cumulative raw,
 stateless full-presentation, and actual stateful-presentation bytes.
+`
+
+const benchRunUsage = `Usage: acap bench run [--verbose] [--keep-workspace] <workload.yaml>
+
+Loads a versioned workload, copies its fixture to a fresh temporary workspace,
+creates a fresh benchmark session, and executes every run step exactly once
+through the normal AgentCap pipeline. Mutation steps are not benchmarked.
+
+Non-zero target exits are allowed unless a run step declares expect.exit.
+Workload files execute commands and must be trusted like repository scripts.
+
+Flags:
+  --verbose         Include one concise line per workload step.
+  --keep-workspace  Retain and print the temporary workspace path.
 `
 
 var debugMode = os.Getenv("ACAP_DEBUG") == "1"
@@ -901,8 +919,50 @@ func benchCmd(args []string) {
 		benchCommandCmd(args[1:])
 	case "session":
 		benchSessionCmd(args[1:])
+	case "run":
+		benchRunCmd(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "acap: bench: unknown subcommand %q\n\n%s", args[0], benchUsage)
+		os.Exit(1)
+	}
+}
+
+func benchRunCmd(args []string) {
+	fs := flag.NewFlagSet("bench run", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	verbose := fs.Bool("verbose", false, "include per-step results")
+	keep := fs.Bool("keep-workspace", false, "retain the temporary workspace")
+	fs.Usage = func() { fmt.Fprint(os.Stderr, benchRunUsage) }
+	if len(args) > 0 && (args[0] == "--help" || args[0] == "-h") {
+		fmt.Fprint(os.Stdout, benchRunUsage)
+		os.Exit(0)
+	}
+	if err := fs.Parse(args); err != nil {
+		fmt.Fprintf(os.Stderr, "acap: bench run: %v\n\n%s", err, benchRunUsage)
+		os.Exit(1)
+	}
+	if len(fs.Args()) != 1 {
+		fs.Usage()
+		os.Exit(1)
+	}
+	d, err := workload.Load(fs.Args()[0])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "acap: bench run: %v\n", err)
+		os.Exit(1)
+	}
+	cwd, _ := os.Getwd()
+	r, err := workload.Run(context.Background(), d, workload.Options{
+		StoreRoot: project.FindRoot(cwd), KeepWorkspace: *keep,
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "acap: %v\n", err)
+		if r != nil && r.RetainedWorkspace != "" {
+			fmt.Fprintf(os.Stderr, "workspace retained: %s\n", r.RetainedWorkspace)
+		}
+		os.Exit(1)
+	}
+	if err := workload.WriteText(os.Stdout, r, *verbose); err != nil {
+		fmt.Fprintf(os.Stderr, "acap: bench run: %v\n", err)
 		os.Exit(1)
 	}
 }

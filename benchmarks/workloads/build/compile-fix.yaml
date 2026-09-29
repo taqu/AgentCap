@@ -1,0 +1,22 @@
+version: 1
+name: build/compile-fix
+fixture: ../../fixtures/compile-fix
+steps:
+  - run:
+      argv: ["go", "build", "."]
+      expect:
+        exit: 1
+  - copy:
+      from: .states/one-error.go.txt
+      to: main.go
+  - run:
+      argv: ["go", "build", "."]
+      expect:
+        exit: 1
+  - copy:
+      from: .states/pass.go.txt
+      to: main.go
+  - run:
+      argv: ["go", "build", "."]
+      expect:
+        exit: 0

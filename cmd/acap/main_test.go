@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -153,11 +154,55 @@ func TestBenchCommandNotFound(t *testing.T) {
 
 func TestBenchHelp(t *testing.T) {
 	root := t.TempDir()
-	for _, args := range [][]string{{"bench", "--help"}, {"bench", "command", "--help"}, {"bench", "session", "--help"}} {
+	for _, args := range [][]string{{"bench", "--help"}, {"bench", "command", "--help"}, {"bench", "session", "--help"}, {"bench", "run", "--help"}} {
 		out, code := acap(t, root, args...)
-		if code != 0 || (!strings.Contains(out, "single command") && !strings.Contains(out, "benchmark session")) {
+		if code != 0 || (!strings.Contains(out, "single command") && !strings.Contains(out, "benchmark session") && !strings.Contains(out, "versioned workload")) {
 			t.Errorf("%v: exit %d, output:\n%s", args, code, out)
 		}
+	}
+}
+
+func TestBenchRunWorkloadCLI(t *testing.T) {
+	root := t.TempDir()
+	workloads := filepath.Join(root, "benchmarks", "workloads", "cli")
+	fixture := filepath.Join(root, "benchmarks", "fixtures", "cli")
+	if err := os.MkdirAll(workloads, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(fixture, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(fixture, "marker.txt"), []byte("original"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	exe, _ := os.Executable()
+	definition := fmt.Sprintf(`version: 1
+name: cli/smoke
+fixture: ../../fixtures/cli
+steps:
+  - write: {path: marker.txt, content: changed}
+  - run:
+      argv: [%q, %q, out, %q]
+      expect: {exit: 0}
+  - run:
+      argv: [%q, %q, out, %q]
+      expect: {exit: 0}
+`, exe, helperArg, strings.Repeat("same line\n", 100), exe, helperArg, strings.Repeat("same line\n", 100))
+	path := filepath.Join(workloads, "smoke.yaml")
+	if err := os.WriteFile(path, []byte(definition), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, code := acap(t, root, "bench", "run", "--verbose", path)
+	if code != 0 {
+		t.Fatalf("exit=%d output:\n%s", code, out)
+	}
+	for _, want := range []string{"Benchmark Workload: cli/smoke", "commands:    2", "mutations:   1", "unchanged:             1", "id="} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in output:\n%s", want, out)
+		}
+	}
+	if got, _ := os.ReadFile(filepath.Join(fixture, "marker.txt")); string(got) != "original" {
+		t.Fatalf("source fixture changed: %q", got)
 	}
 }
 
