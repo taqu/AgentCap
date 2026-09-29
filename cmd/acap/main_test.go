@@ -206,6 +206,58 @@ steps:
 	}
 }
 
+func TestBenchRunJSONIsStableAndExecutesOnce(t *testing.T) {
+	root := t.TempDir()
+	workloads := filepath.Join(root, "benchmarks", "workloads", "cli")
+	fixture := filepath.Join(root, "benchmarks", "fixtures", "cli-json")
+	if err := os.MkdirAll(workloads, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(fixture, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	counter := filepath.Join(root, "json-counter.txt")
+	exe, _ := os.Executable()
+	definition := fmt.Sprintf(`version: 1
+name: cli/json
+fixture: ../../fixtures/cli-json
+steps:
+  - run:
+      argv: [%q, %q, touch, %q, out, %q]
+      expect: {exit: 0}
+`, exe, helperArg, counter, strings.Repeat("JSON output line\n", 100))
+	path := filepath.Join(workloads, "json.yaml")
+	if err := os.WriteFile(path, []byte(definition), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Deliberately put --json after the workload, as documented.
+	out, code := acap(t, root, "bench", "run", path, "--json")
+	if code != 0 {
+		t.Fatalf("exit=%d output=%q", code, out)
+	}
+	var result struct {
+		SchemaVersion     int    `json:"schema_version"`
+		Workload          string `json:"workload"`
+		Commands          int    `json:"commands"`
+		RawBytes          int64  `json:"raw_bytes"`
+		StatelessBytes    int64  `json:"stateless_bytes"`
+		StatefulBytes     int64  `json:"stateful_bytes"`
+		ShowBytes         int64  `json:"show_bytes"`
+		RawRetrievalBytes int64  `json:"raw_retrieval_bytes"`
+		ProcessingNS      int64  `json:"processing_ns"`
+	}
+	if err := json.Unmarshal([]byte(out), &result); err != nil {
+		t.Fatalf("stdout is not JSON-only: %v\n%s", err, out)
+	}
+	if result.SchemaVersion != 1 || result.Workload != "cli/json" || result.Commands != 1 || result.RawBytes == 0 || result.ProcessingNS <= 0 {
+		t.Fatalf("result = %+v", result)
+	}
+	data, err := os.ReadFile(counter)
+	if err != nil || strings.Count(string(data), "\n") != 1 {
+		t.Fatalf("target executed other than once: counter=%q err=%v", data, err)
+	}
+}
+
 func TestBenchSessionPersistsAcrossCLIInvocations(t *testing.T) {
 	root := t.TempDir()
 	started, code := acap(t, root, "bench", "session", "start")

@@ -41,7 +41,7 @@ Usage:
   acap stats
   acap bench command [--json] [--session <id>] -- <command> [args...]
   acap bench session <start|show>
-  acap bench run [--verbose] [--keep-workspace] <workload.yaml>
+  acap bench run [--json] [--verbose] [--keep-workspace] <workload.yaml>
   acap session <start|info|list|history>
   acap history
   acap exec [--protocol=json]
@@ -129,7 +129,7 @@ invocations, and has an isolated baseline. "show" reports cumulative raw,
 stateless full-presentation, and actual stateful-presentation bytes.
 `
 
-const benchRunUsage = `Usage: acap bench run [--verbose] [--keep-workspace] <workload.yaml>
+const benchRunUsage = `Usage: acap bench run [--json] [--verbose] [--keep-workspace] <workload.yaml>
 
 Loads a versioned workload, copies its fixture to a fresh temporary workspace,
 creates a fresh benchmark session, and executes every run step exactly once
@@ -139,6 +139,7 @@ Non-zero target exits are allowed unless a run step declares expect.exit.
 Workload files execute commands and must be trusted like repository scripts.
 
 Flags:
+  --json            Print the versioned benchmark result as JSON only.
   --verbose         Include one concise line per workload step.
   --keep-workspace  Retain and print the temporary workspace path.
 `
@@ -928,31 +929,43 @@ func benchCmd(args []string) {
 }
 
 func benchRunCmd(args []string) {
-	fs := flag.NewFlagSet("bench run", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-	verbose := fs.Bool("verbose", false, "include per-step results")
-	keep := fs.Bool("keep-workspace", false, "retain the temporary workspace")
-	fs.Usage = func() { fmt.Fprint(os.Stderr, benchRunUsage) }
-	if len(args) > 0 && (args[0] == "--help" || args[0] == "-h") {
-		fmt.Fprint(os.Stdout, benchRunUsage)
-		os.Exit(0)
+	var jsonOutput, verbose, keep bool
+	var workloadPath string
+	for _, arg := range args {
+		switch arg {
+		case "--json":
+			jsonOutput = true
+		case "--verbose":
+			verbose = true
+		case "--keep-workspace":
+			keep = true
+		case "--help", "-h":
+			fmt.Fprint(os.Stdout, benchRunUsage)
+			os.Exit(0)
+		default:
+			if strings.HasPrefix(arg, "-") {
+				fmt.Fprintf(os.Stderr, "acap: bench run: unknown flag %q\n\n%s", arg, benchRunUsage)
+				os.Exit(1)
+			}
+			if workloadPath != "" {
+				fmt.Fprint(os.Stderr, benchRunUsage)
+				os.Exit(1)
+			}
+			workloadPath = arg
+		}
 	}
-	if err := fs.Parse(args); err != nil {
-		fmt.Fprintf(os.Stderr, "acap: bench run: %v\n\n%s", err, benchRunUsage)
+	if workloadPath == "" {
+		fmt.Fprint(os.Stderr, benchRunUsage)
 		os.Exit(1)
 	}
-	if len(fs.Args()) != 1 {
-		fs.Usage()
-		os.Exit(1)
-	}
-	d, err := workload.Load(fs.Args()[0])
+	d, err := workload.Load(workloadPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "acap: bench run: %v\n", err)
 		os.Exit(1)
 	}
 	cwd, _ := os.Getwd()
 	r, err := workload.Run(context.Background(), d, workload.Options{
-		StoreRoot: project.FindRoot(cwd), KeepWorkspace: *keep,
+		StoreRoot: project.FindRoot(cwd), KeepWorkspace: keep,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "acap: %v\n", err)
@@ -961,9 +974,18 @@ func benchRunCmd(args []string) {
 		}
 		os.Exit(1)
 	}
-	if err := workload.WriteText(os.Stdout, r, *verbose); err != nil {
+	result := workload.NewBenchmarkResult(r)
+	if jsonOutput {
+		err = workload.WriteJSON(os.Stdout, result)
+	} else {
+		err = workload.WriteHuman(os.Stdout, result, verbose)
+	}
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "acap: bench run: %v\n", err)
 		os.Exit(1)
+	}
+	if jsonOutput && r.RetainedWorkspace != "" {
+		fmt.Fprintf(os.Stderr, "workspace retained: %s\n", r.RetainedWorkspace)
 	}
 }
 

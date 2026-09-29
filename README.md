@@ -80,6 +80,7 @@ accuracy.
 ```bash
 acap bench run benchmarks/workloads/git/repeated-diff.yaml
 acap bench run --verbose benchmarks/workloads/build/compile-fix.yaml
+acap bench run benchmarks/workloads/git/repeated-diff.yaml --json
 ```
 
 Workloads use a versioned YAML schema and run in a fresh disposable copy of a
@@ -92,6 +93,10 @@ workspace mutations. Non-zero command exits are allowed and can be checked with
 See [benchmarks/README.md](benchmarks/README.md) for the schema, fixture and Git
 setup semantics, path restrictions, bundled workloads, result inspection, and
 the `--keep-workspace` debugging option.
+
+`--json` writes only the stable machine-readable benchmark result to stdout.
+The result includes `schema_version`; consumers should use that value to choose
+how to interpret the remaining numeric fields as the schema evolves.
 
 ## Debug
 

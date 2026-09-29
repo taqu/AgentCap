@@ -5,6 +5,7 @@ Run one trial with:
 ```text
 acap bench run benchmarks/workloads/git/repeated-diff.yaml
 acap bench run --verbose benchmarks/workloads/build/compile-fix.yaml
+acap bench run benchmarks/workloads/git/repeated-diff.yaml --json
 ```
 
 Every invocation validates the complete definition, copies the fixture into a
@@ -88,5 +89,30 @@ The bundled workloads are:
 - `test/fail-fix-pass`: failing test, passing test, then a repeated pass.
 
 They use Git and the Go standard toolchain only and require no network access.
-Workload-result JSON is intentionally deferred to the benchmark result-format
-phase; the existing B1/B2 JSON formats remain unchanged.
+
+## Stable result JSON
+
+`--json` writes one JSON object and no human headers or command output to
+stdout. Schema version 1 contains these stable fields:
+
+```json
+{
+  "schema_version": 1,
+  "workload": "git/repeated-diff",
+  "commands": 3,
+  "raw_bytes": 716,
+  "stateless_bytes": 285,
+  "stateful_bytes": 203,
+  "show_bytes": 0,
+  "raw_retrieval_bytes": 0,
+  "processing_ns": 151000000
+}
+```
+
+Counts, byte measurements, and duration are numeric. `processing_ns` preserves
+the existing B2 AgentCap-processing definition. `show_bytes` and
+`raw_retrieval_bytes` are zero because recovery operations are not measured
+until a later benchmark phase. The schema version is independent of workload
+definition version 1 and the internal store schema. Consumers should select
+their interpretation using `schema_version`; later schema versions may add or
+change fields.
