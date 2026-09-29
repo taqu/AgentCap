@@ -25,6 +25,7 @@ import (
 	"github.com/taqu/agentcap/internal/project"
 	"github.com/taqu/agentcap/internal/query"
 	"github.com/taqu/agentcap/internal/reduce"
+	"github.com/taqu/agentcap/internal/retrieval"
 	"github.com/taqu/agentcap/internal/session"
 	"github.com/taqu/agentcap/internal/stats"
 	"github.com/taqu/agentcap/internal/store"
@@ -462,6 +463,7 @@ func showCmd(args []string) {
 	}
 
 	var written int
+	recorded := false
 
 	switch {
 	case *fileFlag != "":
@@ -481,16 +483,18 @@ func showCmd(args []string) {
 	case *pathFlag != "":
 		written = showPath(entry, *pathFlag)
 	default:
-		cap, err := entry.Capsule()
+		n, err := retrieval.Show(os.Stdout, s, entry.ID)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "acap: show: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Print(cap)
-		written = len(cap)
+		written = int(n)
+		recorded = true
 	}
 
-	_ = s.RecordShow(written)
+	if !recorded {
+		_ = s.RecordShow(written)
+	}
 }
 
 func showGitFile(st *store.Store, entry *store.Entry, filePath string, hunkN int) int {
@@ -776,34 +780,17 @@ func rawCmd(args []string) {
 		os.Exit(1)
 	}
 	defer s.Close()
-	entry, err := s.Open(id)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "acap: raw: %v\n", err)
-		os.Exit(1)
-	}
-
-	var path string
+	stream := retrieval.Stdout
 	if *stderrFlag {
-		path = entry.StderrPath()
+		stream = retrieval.Stderr
 	} else if *stdoutFlag {
-		path = entry.StdoutPath()
-	} else {
-		path = entry.StdoutPath() // default: stdout
+		stream = retrieval.Stdout
 	}
-
-	f, err := os.Open(path)
+	_, err = retrieval.Raw(os.Stdout, s, id, stream)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "acap: raw: %v\n", err)
 		os.Exit(1)
 	}
-	defer f.Close()
-
-	n, err := io.Copy(os.Stdout, f)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "acap: raw: copy: %v\n", err)
-		os.Exit(1)
-	}
-	_ = s.RecordRaw(int(n))
 }
 
 func cleanCmd(args []string) {

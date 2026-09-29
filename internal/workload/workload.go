@@ -15,6 +15,9 @@ import (
 	"time"
 
 	"github.com/taqu/agentcap/internal/bench"
+	"github.com/taqu/agentcap/internal/project"
+	"github.com/taqu/agentcap/internal/retrieval"
+	"github.com/taqu/agentcap/internal/store"
 	"gopkg.in/yaml.v3"
 )
 
@@ -45,6 +48,8 @@ type Step struct {
 	Write  *WriteStep  `yaml:"write,omitempty"`
 	Remove *RemoveStep `yaml:"remove,omitempty"`
 	Mkdir  *MkdirStep  `yaml:"mkdir,omitempty"`
+	Show   *ShowStep   `yaml:"show,omitempty"`
+	Raw    *RawStep    `yaml:"raw,omitempty"`
 }
 
 type RunStep struct {
@@ -73,6 +78,17 @@ type RemoveStep struct {
 
 type MkdirStep struct {
 	Path string `yaml:"path"`
+}
+
+// ShowStep retrieves the normal stored capsule for a preceding 1-based run.
+type ShowStep struct {
+	Command int `yaml:"command"`
+}
+
+// RawStep retrieves a captured stream for a preceding 1-based run.
+type RawStep struct {
+	Command int    `yaml:"command"`
+	Stream  string `yaml:"stream,omitempty"`
 }
 
 // Load parses and fully validates a workload before any target command runs.
@@ -146,9 +162,18 @@ func (d *Definition) validate(path string) error {
 	if len(d.Steps) == 0 {
 		return errors.New("workload must contain at least one step")
 	}
+	runCount := 0
 	for i := range d.Steps {
 		if err := d.validateStep(i+1, &d.Steps[i]); err != nil {
 			return fmt.Errorf("step %d: %w", i+1, err)
+		}
+		switch {
+		case d.Steps[i].Run != nil:
+			runCount++
+		case d.Steps[i].Show != nil && d.Steps[i].Show.Command > runCount:
+			return fmt.Errorf("step %d: show command %d must reference a preceding run", i+1, d.Steps[i].Show.Command)
+		case d.Steps[i].Raw != nil && d.Steps[i].Raw.Command > runCount:
+			return fmt.Errorf("step %d: raw command %d must reference a preceding run", i+1, d.Steps[i].Raw.Command)
 		}
 	}
 	return nil
@@ -156,13 +181,13 @@ func (d *Definition) validate(path string) error {
 
 func (d *Definition) validateStep(n int, s *Step) error {
 	count := 0
-	for _, present := range []bool{s.Run != nil, s.Copy != nil, s.Write != nil, s.Remove != nil, s.Mkdir != nil} {
+	for _, present := range []bool{s.Run != nil, s.Copy != nil, s.Write != nil, s.Remove != nil, s.Mkdir != nil, s.Show != nil, s.Raw != nil} {
 		if present {
 			count++
 		}
 	}
 	if count != 1 {
-		return errors.New("exactly one of run, copy, write, remove, or mkdir is required")
+		return errors.New("exactly one of run, copy, write, remove, mkdir, show, or raw is required")
 	}
 	switch {
 	case s.Run != nil:
@@ -200,6 +225,17 @@ func (d *Definition) validateStep(n int, s *Step) error {
 	case s.Mkdir != nil:
 		if err := validateRelative(s.Mkdir.Path, false); err != nil {
 			return fmt.Errorf("invalid mkdir path: %w", err)
+		}
+	case s.Show != nil:
+		if s.Show.Command < 1 {
+			return errors.New("show command must be a positive 1-based run number")
+		}
+	case s.Raw != nil:
+		if s.Raw.Command < 1 {
+			return errors.New("raw command must be a positive 1-based run number")
+		}
+		if s.Raw.Stream != "" && s.Raw.Stream != string(retrieval.Stdout) && s.Raw.Stream != string(retrieval.Stderr) {
+			return fmt.Errorf("raw stream must be stdout or stderr, got %q", s.Raw.Stream)
 		}
 	}
 	_ = n
@@ -290,20 +326,26 @@ type Options struct {
 }
 
 type Result struct {
-	Name              string
-	SessionID         string
-	TotalSteps        int
-	MutationCount     int
-	Aggregate         *bench.SessionMeasurement
-	WallDuration      time.Duration
-	Steps             []StepResult
-	RetainedWorkspace string
+	Name                       string
+	SessionID                  string
+	TotalSteps                 int
+	MutationCount              int
+	ShowCount                  int
+	RawRetrievalCount          int
+	ShowBytes                  int64
+	RawRetrievalBytes          int64
+	RecoveryProcessingDuration time.Duration
+	Aggregate                  *bench.SessionMeasurement
+	WallDuration               time.Duration
+	Steps                      []StepResult
+	RetainedWorkspace          string
 }
 
 type StepResult struct {
-	Number      int
-	Type        string
-	Measurement *bench.Measurement
+	Number        int
+	Type          string
+	Measurement   *bench.Measurement
+	RecoveryBytes int64
 }
 
 // StepError identifies infrastructure or assertion failure separately from a
@@ -354,10 +396,12 @@ func Run(ctx context.Context, d *Definition, opts Options) (result *Result, err 
 	if opts.StoreRoot == "" {
 		return result, errors.New("persistent store root is required")
 	}
-	result.SessionID, err = bench.StartSession(opts.StoreRoot)
+	persistentRoot := project.FindRoot(opts.StoreRoot)
+	result.SessionID, err = bench.StartSession(persistentRoot)
 	if err != nil {
 		return result, fmt.Errorf("start benchmark session: %w", err)
 	}
+	var runs []*bench.Measurement
 	for i := range d.Steps {
 		step := &d.Steps[i]
 		typeName := stepType(step)
@@ -377,22 +421,62 @@ func Run(ctx context.Context, d *Definition, opts Options) (result *Result, err 
 			}
 			if err == nil {
 				var m *bench.Measurement
-				m, err = bench.MeasureSessionCommandAt(ctx, step.Run.Argv, cwd, opts.StoreRoot, result.SessionID)
+				m, err = bench.MeasureSessionCommandAt(ctx, step.Run.Argv, cwd, persistentRoot, result.SessionID)
 				result.Steps[len(result.Steps)-1].Measurement = m
+				if m != nil {
+					runs = append(runs, m)
+				}
 				if err == nil && step.Run.Expect != nil && step.Run.Expect.Exit != nil && m.ExitCode != *step.Run.Expect.Exit {
 					err = fmt.Errorf("exit status %d, expected %d", m.ExitCode, *step.Run.Expect.Exit)
 				}
 			}
+		} else if step.Show != nil || step.Raw != nil {
+			startedRecovery := time.Now()
+			st, openErr := store.Open(persistentRoot)
+			if openErr != nil {
+				err = openErr
+			} else {
+				command := 0
+				if step.Show != nil {
+					command = step.Show.Command
+				} else {
+					command = step.Raw.Command
+				}
+				if command < 1 || command > len(runs) {
+					err = fmt.Errorf("command reference %d is unavailable", command)
+				} else if step.Show != nil {
+					var n int64
+					n, err = retrieval.Show(io.Discard, st, runs[command-1].ResultID)
+					if err == nil {
+						result.ShowCount++
+						result.ShowBytes += n
+						result.Steps[len(result.Steps)-1].RecoveryBytes = n
+					}
+				} else {
+					stream := retrieval.Stream(step.Raw.Stream)
+					var n int64
+					n, err = retrieval.Raw(io.Discard, st, runs[command-1].ResultID, stream)
+					if err == nil {
+						result.RawRetrievalCount++
+						result.RawRetrievalBytes += n
+						result.Steps[len(result.Steps)-1].RecoveryBytes = n
+					}
+				}
+				if closeErr := st.Close(); err == nil && closeErr != nil {
+					err = closeErr
+				}
+			}
+			result.RecoveryProcessingDuration += time.Since(startedRecovery)
 		} else {
 			result.MutationCount++
 			err = mutate(step, d.fixtureDir, workspace)
 		}
 		if err != nil {
-			result.Aggregate, _ = bench.LoadSession(opts.StoreRoot, result.SessionID)
+			result.Aggregate, _ = bench.LoadSession(persistentRoot, result.SessionID)
 			return result, &StepError{Workload: d.Name, Step: i + 1, Type: typeName, Err: err}
 		}
 	}
-	result.Aggregate, err = bench.LoadSession(opts.StoreRoot, result.SessionID)
+	result.Aggregate, err = bench.LoadSession(persistentRoot, result.SessionID)
 	if err != nil {
 		return result, fmt.Errorf("load benchmark session: %w", err)
 	}
@@ -409,8 +493,14 @@ func stepType(s *Step) string {
 		return "write"
 	case s.Remove != nil:
 		return "remove"
-	default:
+	case s.Mkdir != nil:
 		return "mkdir"
+	case s.Show != nil:
+		return "show"
+	case s.Raw != nil:
+		return "raw"
+	default:
+		return "unknown"
 	}
 }
 

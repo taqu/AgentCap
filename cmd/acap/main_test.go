@@ -225,6 +225,9 @@ steps:
   - run:
       argv: [%q, %q, touch, %q, out, %q]
       expect: {exit: 0}
+  - show: {command: 1}
+  - show: {command: 1}
+  - raw: {command: 1}
 `, exe, helperArg, counter, strings.Repeat("JSON output line\n", 100))
 	path := filepath.Join(workloads, "json.yaml")
 	if err := os.WriteFile(path, []byte(definition), 0o644); err != nil {
@@ -236,20 +239,24 @@ steps:
 		t.Fatalf("exit=%d output=%q", code, out)
 	}
 	var result struct {
-		SchemaVersion     int    `json:"schema_version"`
-		Workload          string `json:"workload"`
-		Commands          int    `json:"commands"`
-		RawBytes          int64  `json:"raw_bytes"`
-		StatelessBytes    int64  `json:"stateless_bytes"`
-		StatefulBytes     int64  `json:"stateful_bytes"`
-		ShowBytes         int64  `json:"show_bytes"`
-		RawRetrievalBytes int64  `json:"raw_retrieval_bytes"`
-		ProcessingNS      int64  `json:"processing_ns"`
+		SchemaVersion       int    `json:"schema_version"`
+		Workload            string `json:"workload"`
+		Commands            int    `json:"commands"`
+		RawBytes            int64  `json:"raw_bytes"`
+		StatelessBytes      int64  `json:"stateless_bytes"`
+		StatefulBytes       int64  `json:"stateful_bytes"`
+		InitialVisibleBytes int64  `json:"initial_visible_bytes"`
+		ShowBytes           int64  `json:"show_bytes"`
+		RawRetrievalBytes   int64  `json:"raw_retrieval_bytes"`
+		TotalVisibleBytes   int64  `json:"total_visible_bytes"`
+		ShowCount           int    `json:"show_count"`
+		RawRetrievalCount   int    `json:"raw_retrieval_count"`
+		ProcessingNS        int64  `json:"processing_ns"`
 	}
 	if err := json.Unmarshal([]byte(out), &result); err != nil {
 		t.Fatalf("stdout is not JSON-only: %v\n%s", err, out)
 	}
-	if result.SchemaVersion != 1 || result.Workload != "cli/json" || result.Commands != 1 || result.RawBytes == 0 || result.ProcessingNS <= 0 {
+	if result.SchemaVersion != 2 || result.Workload != "cli/json" || result.Commands != 1 || result.RawBytes == 0 || result.ProcessingNS <= 0 || result.InitialVisibleBytes != result.StatefulBytes || result.ShowCount != 2 || result.RawRetrievalCount != 1 || result.ShowBytes <= 0 || result.RawRetrievalBytes <= 0 || result.TotalVisibleBytes != result.InitialVisibleBytes+result.ShowBytes+result.RawRetrievalBytes {
 		t.Fatalf("result = %+v", result)
 	}
 	data, err := os.ReadFile(counter)

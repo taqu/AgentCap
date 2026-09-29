@@ -1,0 +1,27 @@
+version: 1
+name: recovery/show-and-raw
+fixture: ../../fixtures/git-repeated-diff
+git:
+  init: true
+steps:
+  - write:
+      path: main.go
+      content: |
+        package main
+
+        import "fmt"
+
+        func main() {
+        	fmt.Println("recovery benchmark change")
+        }
+  - run:
+      argv: ["git", "diff", "--", "main.go"]
+      expect:
+        exit: 0
+  - show:
+      command: 1
+  - show:
+      command: 1
+  - raw:
+      command: 1
+      stream: stdout

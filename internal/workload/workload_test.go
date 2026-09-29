@@ -85,12 +85,14 @@ func TestLoadValidWorkload(t *testing.T) {
   - write: {path: value.txt, content: value}
   - remove: {path: value.txt}
   - mkdir: {path: nested/dir}
+  - show: {command: 1}
+  - raw: {command: 1, stream: stderr}
 `, map[string]string{"state.txt": "state"})
 	d, err := Load(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if d.Version != 1 || d.Name != "test/sample" || len(d.Steps) != 5 {
+	if d.Version != 1 || d.Name != "test/sample" || len(d.Steps) != 7 {
 		t.Fatalf("definition = %+v", d)
 	}
 }
@@ -106,6 +108,8 @@ func TestLoadRejectsInvalidDefinitions(t *testing.T) {
 		{"unknown step", validPrefix() + "steps: [{shell: echo}]\n", "field shell not found"},
 		{"empty argv", validPrefix() + "steps: [{run: {argv: []}}]\n", "argv must not be empty"},
 		{"ambiguous", validPrefix() + "steps: [{run: {argv: [go]}, mkdir: {path: x}}]\n", "exactly one"},
+		{"future show", validPrefix() + "steps: [{show: {command: 1}}, {run: {argv: [go]}}]\n", "must reference a preceding run"},
+		{"bad raw stream", validPrefix() + "steps: [{run: {argv: [go]}}, {raw: {command: 1, stream: both}}]\n", "stdout or stderr"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -180,6 +184,10 @@ func TestRunExactlyOnceIsolationFreshSessionsCleanupAndRecovery(t *testing.T) {
 	if first.Aggregate.CommandCount != 2 || first.Aggregate.FullCount != 1 || first.Aggregate.UnchangedCount != 1 {
 		t.Fatalf("aggregate = %+v", first.Aggregate)
 	}
+	canonical := NewBenchmarkResult(first)
+	if canonical.ShowCount != 0 || canonical.RawRetrievalCount != 0 || canonical.ShowBytes != 0 || canonical.RawRetrievalBytes != 0 || canonical.TotalVisibleBytes != canonical.InitialVisibleBytes {
+		t.Fatalf("no-recovery accounting = %+v", canonical)
+	}
 	if first.Aggregate.Commands[1].StatefulVisibleBytes >= first.Aggregate.Commands[1].StatelessVisibleBytes {
 		t.Error("unchanged presentation did not reduce stateful bytes")
 	}
@@ -246,6 +254,114 @@ func TestRunExpectedExitAndAssertionFailure(t *testing.T) {
 			entries, readErr := os.ReadDir(tempParent)
 			if readErr != nil || len(entries) != 0 {
 				t.Fatalf("workspace not cleaned after run (err=%v, entries=%v)", readErr, entries)
+			}
+		})
+	}
+}
+
+func TestRecoveryAccountingAndSingleExecution(t *testing.T) {
+	exe, _ := os.Executable()
+	outputA := strings.Repeat("alpha recovery line\n", 40)
+	outputB := strings.Repeat("beta recovery line\n", 30)
+	outputC := strings.Repeat("gamma recovery line\n", 20)
+	tests := []struct {
+		name     string
+		steps    func(string) string
+		runs     int
+		shows    int
+		raws     int
+		rawBytes int64
+	}{
+		{
+			name: "show",
+			steps: func(counter string) string {
+				return fmt.Sprintf(`
+  - run: {argv: [%q, %q, touch, %q, out, %q]}
+  - show: {command: 1}
+`, exe, helperArg, counter, outputA)
+			},
+			runs: 1, shows: 1,
+		},
+		{
+			name: "raw",
+			steps: func(counter string) string {
+				return fmt.Sprintf(`
+  - run: {argv: [%q, %q, touch, %q, out, %q]}
+  - raw: {command: 1}
+`, exe, helperArg, counter, outputA)
+			},
+			runs: 1, raws: 1, rawBytes: int64(len(outputA)),
+		},
+		{
+			name: "repeated",
+			steps: func(counter string) string {
+				return fmt.Sprintf(`
+  - run: {argv: [%q, %q, touch, %q, out, %q]}
+  - show: {command: 1}
+  - show: {command: 1}
+  - raw: {command: 1, stream: stdout}
+`, exe, helperArg, counter, outputA)
+			},
+			runs: 1, shows: 2, raws: 1, rawBytes: int64(len(outputA)),
+		},
+		{
+			name: "mixed",
+			steps: func(counter string) string {
+				return fmt.Sprintf(`
+  - run: {argv: [%q, %q, touch, %q, out, %q]}
+  - show: {command: 1}
+  - run: {argv: [%q, %q, touch, %q, out, %q]}
+  - run: {argv: [%q, %q, touch, %q, out, %q]}
+  - show: {command: 3}
+  - raw: {command: 3}
+`, exe, helperArg, counter, outputA, exe, helperArg, counter, outputB, exe, helperArg, counter, outputC)
+			},
+			runs: 3, shows: 2, raws: 1, rawBytes: int64(len(outputC)),
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			t.Setenv("LOCALAPPDATA", filepath.Join(root, "cache"))
+			counter := filepath.Join(root, "counter.txt")
+			path := makeLayout(t, validPrefix()+"steps:"+tc.steps(counter), nil)
+			d, err := Load(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			storeRoot := t.TempDir()
+			run, err := Run(context.Background(), d, Options{StoreRoot: storeRoot})
+			if err != nil {
+				t.Fatal(err)
+			}
+			data, err := os.ReadFile(counter)
+			if err != nil || strings.Count(string(data), "\n") != tc.runs {
+				t.Fatalf("commands executed %d times, want %d (err=%v)", strings.Count(string(data), "\n"), tc.runs, err)
+			}
+			result := NewBenchmarkResult(run)
+			if result.Commands != tc.runs || result.ShowCount != tc.shows || result.RawRetrievalCount != tc.raws {
+				t.Fatalf("counts = commands:%d show:%d raw:%d", result.Commands, result.ShowCount, result.RawRetrievalCount)
+			}
+			if tc.shows > 0 && result.ShowBytes <= 0 {
+				t.Fatal("show retrieval produced no visible bytes")
+			}
+			if result.RawRetrievalBytes != tc.rawBytes {
+				t.Fatalf("raw retrieval bytes = %d, want %d", result.RawRetrievalBytes, tc.rawBytes)
+			}
+			if result.TotalVisibleBytes != result.InitialVisibleBytes+result.ShowBytes+result.RawRetrievalBytes {
+				t.Fatalf("total invariant failed: %+v", result)
+			}
+			if tc.name == "repeated" && run.Steps[1].RecoveryBytes*2 != result.ShowBytes {
+				t.Fatalf("repeated show was deduplicated: first=%d total=%d", run.Steps[1].RecoveryBytes, result.ShowBytes)
+			}
+			st, err := store.Open(storeRoot)
+			if err != nil {
+				t.Fatal(err)
+			}
+			stats, err := st.LoadStats()
+			_ = st.Close()
+			if err != nil || stats.ShowCalls != int64(tc.shows) || stats.RawCalls != int64(tc.raws) {
+				t.Fatalf("normal retrieval stats = %+v, err=%v", stats, err)
 			}
 		})
 	}

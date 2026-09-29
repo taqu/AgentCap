@@ -61,6 +61,11 @@ steps:
       path: output
   - remove:
       path: obsolete.txt
+  - show:
+      command: 1
+  - raw:
+      command: 1
+      stream: stdout
 ```
 
 Supported steps are:
@@ -71,11 +76,17 @@ Supported steps are:
 - `write`: replace or create a file whose parent already exists.
 - `remove`: remove a workspace child.
 - `mkdir`: create a workspace directory and missing parents.
+- `show`: retrieve the normal stored capsule for a preceding, 1-based `run`
+  number through the same path as default `acap show`.
+- `raw`: retrieve `stdout` (the default) or `stderr` for a preceding, 1-based
+  `run` number through the same path as `acap raw`.
 
-Only `run` is measured. A target command's non-zero status is ordinary workload
-data unless `expect.exit` is present and does not match. A missing executable,
-unsafe path, failed mutation, or failed assertion is a workload infrastructure
-failure identifying the step number and type.
+Only `run` enters B2 command measurement and command counts. `show` and `raw`
+measure recovery bytes and calls without rerunning the referenced command;
+mutation steps remain unmeasured. A target command's non-zero status is ordinary
+workload data unless `expect.exit` is present and does not match. A missing
+executable, unsafe path, failed mutation, retrieval error, or failed assertion
+is a workload infrastructure failure identifying the step number and type.
 
 When `git.init` is true, setup initializes and commits the copied fixture before
 the first step. It uses repository-local identity, disables signing and hooks,
@@ -87,32 +98,42 @@ The bundled workloads are:
 - `git/repeated-diff`: changed diff, changed diff, then unchanged diff.
 - `build/compile-fix`: two compile failures with fewer errors, then success.
 - `test/fail-fix-pass`: failing test, passing test, then a repeated pass.
+- `recovery/show-and-raw`: one captured Git diff followed by two `show`
+  retrievals and one raw retrieval.
 
 They use Git and the Go standard toolchain only and require no network access.
 
 ## Stable result JSON
 
 `--json` writes one JSON object and no human headers or command output to
-stdout. Schema version 1 contains these stable fields:
+stdout. Schema version 2 adds progressive-disclosure recovery measurements:
 
 ```json
 {
-  "schema_version": 1,
-  "workload": "git/repeated-diff",
-  "commands": 3,
-  "raw_bytes": 716,
-  "stateless_bytes": 285,
-  "stateful_bytes": 203,
-  "show_bytes": 0,
-  "raw_retrieval_bytes": 0,
+  "schema_version": 2,
+  "workload": "recovery/show-and-raw",
+  "commands": 1,
+  "raw_bytes": 221,
+  "stateless_bytes": 95,
+  "stateful_bytes": 95,
+  "initial_visible_bytes": 95,
+  "show_bytes": 176,
+  "raw_retrieval_bytes": 221,
+  "total_visible_bytes": 492,
+  "show_count": 2,
+  "raw_retrieval_count": 1,
   "processing_ns": 151000000
 }
 ```
 
-Counts, byte measurements, and duration are numeric. `processing_ns` preserves
-the existing B2 AgentCap-processing definition. `show_bytes` and
-`raw_retrieval_bytes` are zero because recovery operations are not measured
-until a later benchmark phase. The schema version is independent of workload
-definition version 1 and the internal store schema. Consumers should select
-their interpretation using `schema_version`; later schema versions may add or
-change fields.
+Counts, byte measurements, and duration are numeric. `initial_visible_bytes`
+is the B2 stateful presentation cost. `total_visible_bytes` is computed once as
+initial + every show + every raw retrieval and is the meaningful AgentCap-side
+context cost when recovery occurs. Repeated retrievals are deliberately counted
+again because those bytes are shown to the agent again. `processing_ns` includes
+the existing command processing time plus measured AgentCap retrieval work, but
+not general workload-runner overhead.
+
+The result schema version is independent of workload definition version 1 and
+the internal store schema. Consumers should select their interpretation using
+`schema_version`; later schema versions may add or change fields.

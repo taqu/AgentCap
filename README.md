@@ -98,6 +98,12 @@ the `--keep-workspace` debugging option.
 The result includes `schema_version`; consumers should use that value to choose
 how to interpret the remaining numeric fields as the schema evolves.
 
+Workloads can add deterministic `show` and `raw` steps that reference an earlier
+1-based run number. Schema version 2 separates initial visible output from
+recovery bytes and reports `total_visible_bytes = initial_visible_bytes +
+show_bytes + raw_retrieval_bytes`. Repeated retrievals count repeatedly because
+the agent receives their output repeatedly.
+
 ## Debug
 
 ```bash

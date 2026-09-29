@@ -2,14 +2,10 @@ package workload
 
 // BenchmarkResultSchemaVersion identifies the JSON benchmark result contract.
 // It is independent of the workload-definition and result-store schemas.
-const BenchmarkResultSchemaVersion = 1
+const BenchmarkResultSchemaVersion = 2
 
 // BenchmarkResult is the canonical externally meaningful result of one
 // workload run. Human and JSON formatters both consume this model.
-//
-// ShowBytes and RawRetrievalBytes are explicit zero-valued B4 fields because
-// B0-B3 do not measure recovery operations. B5 may populate them without
-// changing the meaning of the existing fields.
 type BenchmarkResult struct {
 	SchemaVersion int    `json:"schema_version"`
 	Workload      string `json:"workload"`
@@ -19,8 +15,12 @@ type BenchmarkResult struct {
 	StatelessBytes int64 `json:"stateless_bytes"`
 	StatefulBytes  int64 `json:"stateful_bytes"`
 
-	ShowBytes         int64 `json:"show_bytes"`
-	RawRetrievalBytes int64 `json:"raw_retrieval_bytes"`
+	InitialVisibleBytes int64 `json:"initial_visible_bytes"`
+	ShowBytes           int64 `json:"show_bytes"`
+	RawRetrievalBytes   int64 `json:"raw_retrieval_bytes"`
+	TotalVisibleBytes   int64 `json:"total_visible_bytes"`
+	ShowCount           int   `json:"show_count"`
+	RawRetrievalCount   int   `json:"raw_retrieval_count"`
 
 	ProcessingNS int64 `json:"processing_ns"`
 
@@ -44,7 +44,13 @@ func NewBenchmarkResult(run *Result) *BenchmarkResult {
 		r.RawBytes = run.Aggregate.RawBytes
 		r.StatelessBytes = run.Aggregate.StatelessBytes
 		r.StatefulBytes = run.Aggregate.StatefulBytes
-		r.ProcessingNS = run.Aggregate.ProcessingDuration.Nanoseconds()
+		r.InitialVisibleBytes = run.Aggregate.StatefulBytes
+		r.ShowBytes = run.ShowBytes
+		r.RawRetrievalBytes = run.RawRetrievalBytes
+		r.TotalVisibleBytes = r.InitialVisibleBytes + r.ShowBytes + r.RawRetrievalBytes
+		r.ShowCount = run.ShowCount
+		r.RawRetrievalCount = run.RawRetrievalCount
+		r.ProcessingNS = (run.Aggregate.ProcessingDuration + run.RecoveryProcessingDuration).Nanoseconds()
 	}
 	return r
 }
