@@ -28,19 +28,25 @@ type ToolRequest struct {
 	SessionID string            `json:"session_id,omitempty"`
 	MaxBytes  int               `json:"max_bytes,omitempty"`
 	// ShellCommand is opaque shell source. Command remains the direct argv path.
-	ShellCommand *string   `json:"shell_command,omitempty"`
-	Shell        string    `json:"shell,omitempty"`
-	Integration  *Metadata `json:"integration,omitempty"`
+	ShellCommand *string `json:"shell_command,omitempty"`
+	Shell        string  `json:"shell,omitempty"`
+	// InheritProcessGroup keeps the command in the caller's process group
+	// instead of a new one. Set it when the caller owns that group and
+	// terminates it as a whole (e.g. with SIGKILL, which cannot be forwarded).
+	InheritProcessGroup bool      `json:"inherit_process_group,omitempty"`
+	Integration         *Metadata `json:"integration,omitempty"`
 }
 
 // Metadata is agent-independent attribution, never executable configuration.
 type Metadata struct {
-	Agent            string `json:"agent"`
-	Adapter          string `json:"adapter"`
-	Version          string `json:"version"`
-	ExternalSession  string `json:"external_session,omitempty"`
-	ToolUseID        string `json:"tool_use_id,omitempty"`
-	SubagentID       string `json:"subagent_id,omitempty"`
+	Agent           string `json:"agent"`
+	Adapter         string `json:"adapter"`
+	Version         string `json:"version"`
+	ExternalSession string `json:"external_session,omitempty"`
+	ToolUseID       string `json:"tool_use_id,omitempty"`
+	SubagentID      string `json:"subagent_id,omitempty"`
+	// Model is optional attribution; it never participates in session identity.
+	Model            string `json:"model,omitempty"`
 	AdapterLatencyNs int64  `json:"adapter_latency_ns"`
 }
 

@@ -93,18 +93,21 @@ func Run(ctx context.Context, args []string, opts *Options) (*Result, error) {
 		return &Result{Args: args, ExitCode: 1}, fmt.Errorf("acap: %w", err)
 	}
 
-	// Forward termination signals to the child.
+	// Forward termination signals to the child (its whole process group when
+	// it has one) until it exits, so a terminated wrapper never orphans it.
+	tree := opts != nil && opts.ProcessTree
 	sigs := make(chan os.Signal, 1)
 	notifySignals(sigs)
 	sigDone := make(chan struct{})
 	go func() {
 		defer signal.Stop(sigs)
-		select {
-		case sig := <-sigs:
-			if c.Process != nil {
-				_ = c.Process.Signal(sig)
+		for {
+			select {
+			case sig := <-sigs:
+				forwardSignal(c, sig, tree)
+			case <-sigDone:
+				return
 			}
-		case <-sigDone:
 		}
 	}()
 

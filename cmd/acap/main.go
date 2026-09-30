@@ -19,6 +19,7 @@ import (
 	"github.com/taqu/agentcap/internal/delta"
 	"github.com/taqu/agentcap/internal/exec"
 	"github.com/taqu/agentcap/internal/gitparse"
+	"github.com/taqu/agentcap/internal/integration/antigravity"
 	"github.com/taqu/agentcap/internal/integration/claude"
 	"github.com/taqu/agentcap/internal/integration/codex"
 	"github.com/taqu/agentcap/internal/integration/common"
@@ -52,8 +53,8 @@ Usage:
   acap session <start|info|list|history>
   acap history
   acap exec [--protocol=json]
-  acap hook <claude|codex>
-  acap integrate <claude|codex|status> [--dry-run] [--remove]
+  acap hook <claude|codex|antigravity>
+  acap integrate <claude|codex|antigravity|status> [--dry-run] [--remove]
   acap doctor
 
 Examples:
@@ -239,6 +240,12 @@ func main() {
 			os.Exit(2)
 		}
 		os.Exit(claude.ExecutePayload(context.Background(), args[1], os.Stdout, os.Stderr))
+	case "antigravity-exec":
+		if len(args) != 2 {
+			fmt.Fprintln(os.Stderr, "acap: missing Antigravity execution payload; command not started")
+			os.Exit(2)
+		}
+		os.Exit(antigravity.ExecutePayload(context.Background(), args[1], os.Stdout, os.Stderr))
 	case "integrate":
 		integrateCmd(args[1:])
 	case "doctor":
@@ -1443,21 +1450,24 @@ func splitWords(s string) []string {
 	return strings.Fields(s)
 }
 
-// hookCmd implements "acap hook <claude|codex>".
+// hookCmd implements "acap hook <claude|codex|antigravity>".
 func hookCmd(args []string) {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "Usage: acap hook <claude|codex>")
+		fmt.Fprintln(os.Stderr, "Usage: acap hook <claude|codex|antigravity>")
 		os.Exit(1)
 	}
 	adapter := args[0]
 
-	// Check bypass/recursive conditions first.
-	if common.IsBypassed() || common.IsRecursive() {
+	// Check bypass/recursive conditions first. Antigravity's Prepare handles
+	// them itself so bypasses are recorded in adapter metrics.
+	if adapter != "antigravity" && (common.IsBypassed() || common.IsRecursive()) {
 		switch adapter {
 		case "claude":
 			os.Stdout.Write(claude.MakeAllowResponse())
 		case "codex":
 			os.Stdout.Write(codex.MakeAllowResponse())
+		case "antigravity":
+			os.Stdout.Write(antigravity.MakePassResponse())
 		}
 		os.Exit(0)
 	}
@@ -1467,6 +1477,8 @@ func hookCmd(args []string) {
 		hookClaudeCmd()
 	case "codex":
 		hookCodexCmd()
+	case "antigravity":
+		hookAntigravityCmd()
 	default:
 		fmt.Fprintf(os.Stderr, "acap: hook: unknown adapter %q\n", adapter)
 		os.Exit(1)
@@ -1490,6 +1502,24 @@ func hookClaudeCmd() {
 	}
 	os.Stdout.Write(response)
 }
+func hookAntigravityCmd() {
+	data, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		os.Stdout.Write(antigravity.MakePassResponse())
+		return
+	}
+	executable, err := os.Executable()
+	if err != nil {
+		os.Stdout.Write(antigravity.MakePassResponse())
+		return
+	}
+	response, _, err := antigravity.Prepare(data, executable)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "acap: Antigravity hook bypassed:", err)
+	}
+	os.Stdout.Write(response)
+}
+
 func hookCodexCmd() {
 	if os.Getenv(protocol.EnvBenchmarkMode) == "disabled" {
 		os.Stdout.Write(codex.MakeAllowResponse())
@@ -1572,10 +1602,10 @@ func benchmarkSessionID(agentSessionID string) string {
 	return common.MapAgentSession(agentSessionID)
 }
 
-// integrateCmd implements "acap integrate <claude|codex|status> [--dry-run] [--remove]".
+// integrateCmd implements "acap integrate <claude|codex|antigravity|status> [--dry-run] [--remove]".
 func integrateCmd(args []string) {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "Usage: acap integrate <claude|codex|status> [--dry-run] [--remove]")
+		fmt.Fprintln(os.Stderr, "Usage: acap integrate <claude|codex|antigravity|status> [--dry-run] [--remove]")
 		os.Exit(1)
 	}
 
@@ -1598,6 +1628,11 @@ func integrateCmd(args []string) {
 			fmt.Println("codex: configured")
 		} else {
 			fmt.Println("codex: not configured")
+		}
+		if antigravity.IsInstalled(root) {
+			fmt.Println("antigravity: configured")
+		} else {
+			fmt.Println("antigravity: not configured")
 		}
 
 	case "claude":
@@ -1641,6 +1676,28 @@ func integrateCmd(args []string) {
 			}
 			if !*dryRun {
 				fmt.Println("codex: hook installed")
+			}
+		}
+
+	case "antigravity":
+		fs := flag.NewFlagSet("integrate antigravity", flag.ExitOnError)
+		dryRun := fs.Bool("dry-run", false, "print what would be done")
+		remove := fs.Bool("remove", false, "remove hook")
+		_ = fs.Parse(rest)
+
+		if *remove {
+			if err := antigravity.Remove(root); err != nil {
+				fmt.Fprintf(os.Stderr, "acap: integrate antigravity --remove: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Println("antigravity: hook removed")
+		} else {
+			if err := antigravity.Install(root, *dryRun); err != nil {
+				fmt.Fprintf(os.Stderr, "acap: integrate antigravity: %v\n", err)
+				os.Exit(1)
+			}
+			if !*dryRun {
+				fmt.Println("antigravity: hook installed")
 			}
 		}
 
@@ -1696,6 +1753,13 @@ func doctorCmd(args []string) {
 		fmt.Printf("codex integration: configured\n")
 	} else {
 		fmt.Printf("codex integration: not configured\n")
+	}
+
+	// Antigravity integration.
+	if antigravity.IsInstalled(root) {
+		fmt.Printf("antigravity integration: configured\n")
+	} else {
+		fmt.Printf("antigravity integration: not configured\n")
 	}
 }
 

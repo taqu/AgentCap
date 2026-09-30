@@ -17,7 +17,6 @@ import (
 	"github.com/taqu/agentcap/internal/integration/common"
 	"github.com/taqu/agentcap/internal/integration/engine"
 	"github.com/taqu/agentcap/internal/integration/protocol"
-	"github.com/taqu/agentcap/internal/project"
 )
 
 const AdapterVersion = "1"
@@ -162,41 +161,5 @@ func ExecutePayload(ctx context.Context, encoded string, stdout, stderr io.Write
 
 // One bounded append per invocation; no command text or environment values.
 func recordMetric(cwd string, h *HookInput, reason string, failed bool, adapter, processing time.Duration) {
-	if cwd == "" || !filepath.IsAbs(cwd) {
-		return
-	}
-	root := project.FindRoot(cwd)
-	dir := filepath.Join(root, ".acap")
-	if os.MkdirAll(dir, 0755) != nil {
-		return
-	}
-	metric := struct {
-		Agent        string `json:"agent"`
-		Adapter      string `json:"adapter"`
-		Version      string `json:"adapter_version"`
-		Session      string `json:"session_mapping"`
-		ToolUseID    string `json:"tool_use_id,omitempty"`
-		SubagentID   string `json:"subagent_id,omitempty"`
-		Reason       string `json:"reason"`
-		Intercepted  int    `json:"commands_intercepted"`
-		Bypassed     int    `json:"commands_bypassed"`
-		Failures     int    `json:"adapter_failures"`
-		AdapterNs    int64  `json:"adapter_latency_ns"`
-		ProcessingNs int64  `json:"processing_latency_ns"`
-	}{Agent: "claude-code", Adapter: "claude", Version: AdapterVersion, Session: common.MapSession("claude-code", h.SessionID, root), ToolUseID: h.ToolUseID, SubagentID: h.AgentID, Reason: reason, AdapterNs: adapter.Nanoseconds(), ProcessingNs: processing.Nanoseconds()}
-	if reason == "intercepted" || reason == "processing-failure" {
-		metric.Intercepted = 1
-	} else {
-		metric.Bypassed = 1
-	}
-	if failed {
-		metric.Failures = 1
-	}
-	data, _ := json.Marshal(metric)
-	f, err := os.OpenFile(filepath.Join(dir, "adapter-metrics.jsonl"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
-	if err != nil {
-		return
-	}
-	defer f.Close()
-	f.Write(append(data, '\n'))
+	common.RecordMetric(cwd, common.AdapterMetric{Agent: "claude-code", Adapter: "claude", Version: AdapterVersion, Session: h.SessionID, ToolUseID: h.ToolUseID, SubagentID: h.AgentID, Reason: reason, Failed: failed, AdapterLatency: adapter, ProcessingLatency: processing})
 }

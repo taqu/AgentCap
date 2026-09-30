@@ -94,7 +94,7 @@ func Run(ctx context.Context, req *protocol.ToolRequest) (*Outcome, error) {
 			opts.Env = common.EnvWithDepth(opts.Env)
 		}
 	}
-	if req.ShellCommand != nil {
+	if req.ShellCommand != nil && !req.InheritProcessGroup {
 		opts.ProcessTree = true
 	}
 	if req.Integration != nil {
