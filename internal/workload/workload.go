@@ -35,6 +35,14 @@ type Definition struct {
 	Task    string       `yaml:"task,omitempty"`
 	Timeout string       `yaml:"timeout,omitempty"`
 	Verify  []VerifyStep `yaml:"verify,omitempty"`
+	// Setup holds mutation-only steps applied to agent workspaces after the
+	// Git baseline commit (for example, uncommitted changes to review).
+	Setup []Step `yaml:"setup,omitempty"`
+	// Phase 7 descriptive metadata for coding-agent workloads.
+	Category    string `yaml:"category,omitempty"`
+	Language    string `yaml:"language,omitempty"`
+	Scale       string `yaml:"scale,omitempty"`
+	CachePolicy string `yaml:"cache_policy,omitempty"`
 
 	fixtureDir string
 }
@@ -173,6 +181,17 @@ func (d *Definition) validate(path string) error {
 	}
 	if agentWorkload && len(d.Steps) != 0 {
 		return errors.New("agent workloads use fixture setup and cannot contain deterministic steps")
+	}
+	if !agentWorkload && len(d.Setup) != 0 {
+		return errors.New("setup requires an agent task")
+	}
+	for i := range d.Setup {
+		if err := d.validateStep(i+1, &d.Setup[i]); err != nil {
+			return fmt.Errorf("setup step %d: %w", i+1, err)
+		}
+		if t := stepType(&d.Setup[i]); t == "run" || t == "show" || t == "raw" {
+			return fmt.Errorf("setup step %d: only copy, write, remove, and mkdir are allowed", i+1)
+		}
 	}
 	if agentWorkload && len(d.Verify) == 0 {
 		return errors.New("agent workload verification is required")
@@ -525,9 +544,21 @@ func PrepareWorkspace(ctx context.Context, d *Definition, tempRoot string) (work
 	if err = copyTree(d.fixtureDir, workspace); err != nil {
 		return "", fmt.Errorf("copy fixture: %w", err)
 	}
+	agentWorkload := strings.TrimSpace(d.Task) != ""
+	if agentWorkload {
+		// Setup states are harness input, never visible to the coding agent.
+		if err = os.RemoveAll(filepath.Join(workspace, ".states")); err != nil {
+			return "", fmt.Errorf("remove fixture states: %w", err)
+		}
+	}
 	if d.Git.Init {
 		if err = initGit(ctx, workspace); err != nil {
 			return "", fmt.Errorf("initialize Git fixture: %w", err)
+		}
+	}
+	for i := range d.Setup {
+		if err = mutate(&d.Setup[i], d.fixtureDir, workspace); err != nil {
+			return "", fmt.Errorf("setup step %d: %w", i+1, err)
 		}
 	}
 	return workspace, nil

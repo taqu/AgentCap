@@ -1,0 +1,4 @@
+ M api/handlers.go
+ M cmd/inventory/main.go
+ M report/report.go
+?? .claude/

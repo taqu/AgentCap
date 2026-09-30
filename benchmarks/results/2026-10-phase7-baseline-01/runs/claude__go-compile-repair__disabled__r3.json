@@ -1,0 +1,96 @@
+{
+  "schema_version": 4,
+  "trial": 1,
+  "workload": "phase7/go-compile-repair",
+  "commands": 3,
+  "raw_bytes": 3891,
+  "stateless_bytes": 3891,
+  "stateful_bytes": 3891,
+  "initial_visible_bytes": 3891,
+  "show_bytes": 0,
+  "raw_retrieval_bytes": 0,
+  "total_visible_bytes": 3891,
+  "show_count": 0,
+  "raw_retrieval_count": 0,
+  "processing_ns": 0,
+  "agent": "claude",
+  "mode": "disabled",
+  "task_success": true,
+  "execution_status": "completed",
+  "agent_exit_code": 0,
+  "wall_time_ns": 10161145987,
+  "workflow": {
+    "run_id": "20260930T195243.233-82576",
+    "batch": "2026-10-phase7-baseline-01",
+    "started_at": "2026-09-30T19:52:43Z",
+    "platform": "linux/amd64",
+    "category": "compile-repair",
+    "language": "go",
+    "agent_version": "2.1.286",
+    "model": "claude-sonnet-5-5",
+    "agentcap_version": "2f2c593b4639+dirty",
+    "adapter_version": "1",
+    "outcome": "PASS",
+    "shell_commands": 3,
+    "repeated_commands": 0,
+    "shell_visible_bytes": 3891,
+    "shell_visible_tokens_est": 973,
+    "show_calls": 0,
+    "show_visible_bytes": 0,
+    "raw_calls": 0,
+    "raw_visible_bytes": 0,
+    "immediate_raw_calls": 0,
+    "acap_results": 0,
+    "instruction_bytes": 0,
+    "total_context_cost_bytes": 3891,
+    "total_context_cost_tokens_est": 973,
+    "native_tool_calls": 0,
+    "native_tool_bytes": 0,
+    "family_bytes": {
+      "build": 1356,
+      "file-read": 2535
+    },
+    "family_count": {
+      "build": 1,
+      "file-read": 2
+    },
+    "commands_intercepted": 0,
+    "commands_bypassed": 3,
+    "adapter_failures": 0,
+    "adapter_latency_ns": 0,
+    "core_latency_ns": 0,
+    "bypass_reasons": {
+      "explicit-bypass": 3
+    },
+    "full_results": 0,
+    "delta_results": 0,
+    "unchanged_results": 0,
+    "host_input_tokens": 8,
+    "host_cache_read_tokens": 52467,
+    "host_cache_write_tokens": 7889,
+    "host_output_tokens": 741,
+    "trace": [
+      {
+        "i": 1,
+        "tool": "shell",
+        "family": "build",
+        "command": "go build ./... 2\u003e\u00261 | head -30; grep -rn \"\\.Get(\" --include=*.go . | head -30",
+        "bytes": 1356
+      },
+      {
+        "i": 2,
+        "tool": "shell",
+        "family": "file-read",
+        "command": "sed -n 20,60p report/report.go; grep -n \"func \\|^import\\|^\t\\\"\" api/handlers.go | head -30; sed -n 1,35p cmd/inventory/main.go; grep -rn \"report\\.\\|Report(\" --include=*.go . | grep -v \"^./report/report.go\"",
+        "bytes": 2275
+      },
+      {
+        "i": 3,
+        "tool": "shell",
+        "family": "file-read",
+        "command": "sed -i 's/s\\.Get(sku)/s.Get(ctx, sku)/; s/s\\.Get(it\\.SKU)/s.Get(ctx, it.SKU)/' report/report.go\nsed -i 's/s\\.Store\\.Get(\\(.*\\))/s.Store.Get(r.Context(), \\1)/' api/handlers.go\nsed -i 's/st\\.Get(\\*show)/st.Get(context.Background(), *show)/; s/^import (/import (\\n\\t\"context\"/' cmd/inventory/main.go\ngof…",
+        "bytes": 260
+      }
+    ]
+  }
+}

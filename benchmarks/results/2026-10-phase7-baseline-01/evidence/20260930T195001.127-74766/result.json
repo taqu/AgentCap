@@ -1,0 +1,88 @@
+{
+  "schema_version": 4,
+  "workload": "phase7/go-feature-csv",
+  "commands": 2,
+  "raw_bytes": 2802,
+  "stateless_bytes": 2802,
+  "stateful_bytes": 2802,
+  "initial_visible_bytes": 2802,
+  "show_bytes": 0,
+  "raw_retrieval_bytes": 0,
+  "total_visible_bytes": 2802,
+  "show_count": 0,
+  "raw_retrieval_count": 0,
+  "processing_ns": 0,
+  "agent": "claude",
+  "mode": "disabled",
+  "task_success": true,
+  "execution_status": "completed",
+  "agent_exit_code": 0,
+  "wall_time_ns": 16203774801,
+  "workflow": {
+    "run_id": "20260930T195001.127-74766",
+    "batch": "2026-10-phase7-baseline-01",
+    "started_at": "2026-09-30T19:50:01Z",
+    "platform": "linux/amd64",
+    "category": "feature",
+    "language": "go",
+    "agent_version": "2.1.286",
+    "model": "claude-sonnet-5-5",
+    "agentcap_version": "2f2c593b4639+dirty",
+    "adapter_version": "1",
+    "outcome": "PASS",
+    "shell_commands": 2,
+    "repeated_commands": 0,
+    "shell_visible_bytes": 2802,
+    "shell_visible_tokens_est": 701,
+    "show_calls": 0,
+    "show_visible_bytes": 0,
+    "raw_calls": 0,
+    "raw_visible_bytes": 0,
+    "immediate_raw_calls": 0,
+    "acap_results": 0,
+    "instruction_bytes": 0,
+    "total_context_cost_bytes": 2802,
+    "total_context_cost_tokens_est": 701,
+    "native_tool_calls": 0,
+    "native_tool_bytes": 0,
+    "family_bytes": {
+      "generic": 210,
+      "listing": 2592
+    },
+    "family_count": {
+      "generic": 1,
+      "listing": 1
+    },
+    "commands_intercepted": 0,
+    "commands_bypassed": 2,
+    "adapter_failures": 0,
+    "adapter_latency_ns": 0,
+    "core_latency_ns": 0,
+    "bypass_reasons": {
+      "explicit-bypass": 2
+    },
+    "full_results": 0,
+    "delta_results": 0,
+    "unchanged_results": 0,
+    "host_input_tokens": 6,
+    "host_cache_read_tokens": 37569,
+    "host_cache_write_tokens": 7812,
+    "host_output_tokens": 1104,
+    "trace": [
+      {
+        "i": 1,
+        "tool": "shell",
+        "family": "listing",
+        "command": "find . -name '*.go' -not -path './.claude/*' | head -30 \u0026\u0026 cat report/*.go | head -150",
+        "bytes": 2592
+      },
+      {
+        "i": 2,
+        "tool": "shell",
+        "family": "generic",
+        "command": "python3 - \u003c\u003c'E'\np='report/report.go'\ns=open(p).read()\ns=s.replace('Supported formats: \"table\".','Supported formats: \"table\", \"csv\".')\ns=s.replace('''\t\treturn table(items), nil\n\t}''','''\t\treturn table(items), nil\n\tcase \"csv\":\n\t\treturn csvFormat(items), nil\n\t}''',1)\ns=s.replace('''// Lookup renders'''…",
+        "bytes": 210
+      }
+    ]
+  }
+}

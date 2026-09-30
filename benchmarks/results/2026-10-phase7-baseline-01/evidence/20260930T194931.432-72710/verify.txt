@@ -1,0 +1,39 @@
+$ [go test ./...] (exit 0, expected 0)
+ok  	inventory/api	0.003s
+?   	inventory/cmd/inventory	[no test files]
+ok  	inventory/lexer	0.002s
+ok  	inventory/query	0.003s
+ok  	inventory/report	0.002s
+ok  	inventory/store	0.003s
+ok  	inventory/util	0.002s
+
+$ [sh -c cat > report/zz_hidden_test.go <<'ACAP_HIDDEN'
+package report
+
+import (
+	"testing"
+
+	"inventory/store"
+)
+
+func TestHiddenCSV(t *testing.T) {
+	out, err := Render([]store.Item{{SKU: "B-1", Name: "bolt", Qty: 12, Price: 0.25}, {SKU: "N-2", Name: "nail, 12\" long", Qty: 3, Price: 1}}, "csv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "sku,name,qty,price\nB-1,bolt,12,0.25\nN-2,\"nail, 12\"\" long\",3,1.00\n"
+	if out != want {
+		t.Fatalf("got %q want %q", out, want)
+	}
+	if tbl, _ := Render(nil, "table"); tbl == "" {
+		t.Fatal("table format regressed")
+	}
+}
+ACAP_HIDDEN
+go test ./report/; rc=$?; rm -f report/zz_hidden_test.go; exit $rc] (exit 1, expected 0)
+--- FAIL: TestHiddenCSV (0.00s)
+    zz_hidden_test.go:12: unknown format "csv"
+FAIL
+FAIL	inventory/report	0.002s
+FAIL
+

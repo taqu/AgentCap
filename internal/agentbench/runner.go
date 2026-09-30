@@ -24,6 +24,11 @@ type Options struct {
 	KeepWorkspace bool
 	HookCommand   string
 	Model         string
+
+	// Phase 7 batch metadata and evidence retention.
+	Batch       string
+	AcapVersion string
+	EvidenceDir string
 }
 
 type Trial struct {
@@ -46,6 +51,14 @@ func Run(ctx context.Context, definition *workload.Definition, opts Options) (tr
 	if opts.StoreRoot == "" {
 		return nil, errors.New("persistent store root is required")
 	}
+	if ms, ok := opts.Adapter.(ModeSupporter); ok && !ms.SupportsMode(opts.Mode) {
+		return nil, fmt.Errorf("agent %s does not support mode %s through its production adapter", opts.Adapter.Name(), opts.Mode)
+	}
+	binDir, err := linkAcapBinary(opts.TempRoot)
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(binDir)
 	workspace, err := workload.PrepareWorkspace(ctx, definition, opts.TempRoot)
 	if err != nil {
 		return nil, err
@@ -85,10 +98,11 @@ func Run(ctx context.Context, definition *workload.Definition, opts Options) (tr
 	}
 	agentCtx, cancel := context.WithTimeout(ctx, timeout)
 	started := time.Now()
+	runID := fmt.Sprintf("%s-%d", started.UTC().Format("20060102T150405.000"), os.Getpid())
 	agentResult, runErr := opts.Adapter.Run(agentCtx, AgentRunRequest{
 		Workspace: workspace, Task: definition.Task, Mode: opts.Mode,
 		StoreRoot: root, HookCommand: opts.HookCommand, Model: opts.Model,
-		SessionScope: sessionScope,
+		SessionScope: sessionScope, BinDir: binDir,
 	})
 	wall := time.Since(started)
 	cancel()
@@ -102,7 +116,7 @@ func Run(ctx context.Context, definition *workload.Definition, opts Options) (tr
 		return trial, err
 	}
 	delta := subtractStats(after, before)
-	success, err := verify(ctx, workspace, definition.Verify)
+	success, verifyLog, err := verify(ctx, workspace, definition.Verify)
 	if err != nil {
 		return trial, err
 	}
@@ -141,29 +155,37 @@ func Run(ctx context.Context, definition *workload.Definition, opts Options) (tr
 		benchmark.RawRetrievalCount = int(delta.RawCalls)
 		benchmark.ProcessingNS = delta.ProcessingNS
 	}
+	benchmark.Workflow = workflowMetrics(definition, opts, agentResult, &delta, root, runID, started, success, status)
 	trial.Benchmark = benchmark
+	if opts.EvidenceDir != "" {
+		if err := writeEvidence(ctx, opts.EvidenceDir, runID, workspace, agentResult, verifyLog, benchmark); err != nil {
+			return trial, err
+		}
+	}
 	return trial, nil
 }
 
-func verify(ctx context.Context, workspace string, steps []workload.VerifyStep) (bool, error) {
+func verify(ctx context.Context, workspace string, steps []workload.VerifyStep) (bool, []byte, error) {
+	var log []byte
 	for i, step := range steps {
 		cwd, err := workload.ResolveWorkspaceDir(workspace, step.Run.Cwd)
 		if err != nil {
-			return false, fmt.Errorf("verify step %d cwd: %w", i+1, err)
+			return false, log, fmt.Errorf("verify step %d cwd: %w", i+1, err)
 		}
 		result, err := acapexec.Run(ctx, step.Run.Argv, &acapexec.Options{Dir: cwd})
 		if err != nil {
-			return false, fmt.Errorf("verify step %d: %w", i+1, err)
+			return false, log, fmt.Errorf("verify step %d: %w", i+1, err)
 		}
 		expected := 0
 		if step.Run.Expect != nil && step.Run.Expect.Exit != nil {
 			expected = *step.Run.Expect.Exit
 		}
+		log = fmt.Appendf(log, "$ %v (exit %d, expected %d)\n%s%s\n", step.Run.Argv, result.ExitCode, expected, result.Stdout, result.Stderr)
 		if result.ExitCode != expected {
-			return false, nil
+			return false, log, nil
 		}
 	}
-	return true, nil
+	return true, log, nil
 }
 
 func loadStats(root string) (*stats.Stats, error) {
@@ -186,5 +208,7 @@ func subtractStats(after, before *stats.Stats) stats.Stats {
 		StatelessBytes: after.StatelessBytes - before.StatelessBytes,
 		StatefulBytes:  after.StatefulBytes - before.StatefulBytes,
 		ProcessingNS:   after.ProcessingNS - before.ProcessingNS,
+		UnchangedCount: after.UnchangedCount - before.UnchangedCount,
+		DeltaCount:     after.DeltaCount - before.DeltaCount,
 	}
 }

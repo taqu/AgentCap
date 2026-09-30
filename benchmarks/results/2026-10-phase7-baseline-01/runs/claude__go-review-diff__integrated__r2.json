@@ -1,0 +1,103 @@
+{
+  "schema_version": 4,
+  "trial": 1,
+  "workload": "phase7/go-review-diff",
+  "commands": 3,
+  "raw_bytes": 10768,
+  "stateless_bytes": 6243,
+  "stateful_bytes": 6243,
+  "initial_visible_bytes": 6243,
+  "show_bytes": 0,
+  "raw_retrieval_bytes": 0,
+  "total_visible_bytes": 6243,
+  "show_count": 0,
+  "raw_retrieval_count": 0,
+  "processing_ns": 3772731,
+  "agent": "claude",
+  "mode": "integrated",
+  "task_success": true,
+  "execution_status": "completed",
+  "agent_exit_code": 0,
+  "wall_time_ns": 10609913698,
+  "workflow": {
+    "run_id": "20260930T195253.788-83416",
+    "batch": "2026-10-phase7-baseline-01",
+    "started_at": "2026-09-30T19:52:53Z",
+    "platform": "linux/amd64",
+    "category": "git-review",
+    "language": "go",
+    "agent_version": "2.1.286",
+    "model": "claude-sonnet-5-5",
+    "agentcap_version": "2f2c593b4639+dirty",
+    "adapter_version": "1",
+    "outcome": "PASS",
+    "shell_commands": 3,
+    "repeated_commands": 0,
+    "shell_visible_bytes": 6240,
+    "shell_visible_tokens_est": 1560,
+    "show_calls": 0,
+    "show_visible_bytes": 0,
+    "raw_calls": 0,
+    "raw_visible_bytes": 0,
+    "immediate_raw_calls": 0,
+    "acap_results": 3,
+    "instruction_bytes": 0,
+    "total_context_cost_bytes": 6240,
+    "total_context_cost_tokens_est": 1560,
+    "native_tool_calls": 1,
+    "native_tool_bytes": 111,
+    "family_bytes": {
+      "git": 6240
+    },
+    "family_count": {
+      "git": 3
+    },
+    "commands_intercepted": 3,
+    "commands_bypassed": 0,
+    "adapter_failures": 0,
+    "adapter_latency_ns": 321224,
+    "core_latency_ns": 3772731,
+    "full_results": 3,
+    "delta_results": 0,
+    "unchanged_results": 0,
+    "host_input_tokens": 8,
+    "host_cache_read_tokens": 52891,
+    "host_cache_write_tokens": 9231,
+    "host_output_tokens": 658,
+    "trace": [
+      {
+        "i": 1,
+        "tool": "shell",
+        "family": "git",
+        "command": "git diff",
+        "bytes": 723,
+        "result_id": "b56f60",
+        "kind": "full"
+      },
+      {
+        "i": 2,
+        "tool": "shell",
+        "family": "git",
+        "command": "git --no-pager diff --no-ext-diff -U4 | cat",
+        "bytes": 3984,
+        "result_id": "6c46e5",
+        "kind": "full"
+      },
+      {
+        "i": 3,
+        "tool": "Edit",
+        "family": "native",
+        "bytes": 111
+      },
+      {
+        "i": 4,
+        "tool": "shell",
+        "family": "git",
+        "command": "git --no-pager diff -U2 api/handlers.go | sed -n 25,60p; go test ./... 2\u003e\u00261 | tail",
+        "bytes": 1533,
+        "result_id": "be3f78",
+        "kind": "full"
+      }
+    ]
+  }
+}

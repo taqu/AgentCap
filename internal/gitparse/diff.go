@@ -237,7 +237,7 @@ func parseDiffGitLine(line string, f *GitDiffFile) {
 		// Find " b/" - the split point
 		idx := strings.Index(rest, " b/")
 		if idx >= 0 {
-			oldP := rest[2:idx] // strip "a/"
+			oldP := rest[2:idx]  // strip "a/"
 			newP := rest[idx+3:] // strip " b/"
 			f.OldPath = oldP
 			f.NewPath = newP

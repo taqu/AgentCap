@@ -1,0 +1,85 @@
+{
+  "schema_version": 4,
+  "workload": "phase7/go-review-diff",
+  "commands": 1,
+  "raw_bytes": 4582,
+  "stateless_bytes": 4582,
+  "stateful_bytes": 4582,
+  "initial_visible_bytes": 4582,
+  "show_bytes": 0,
+  "raw_retrieval_bytes": 0,
+  "total_visible_bytes": 4582,
+  "show_count": 0,
+  "raw_retrieval_count": 0,
+  "processing_ns": 0,
+  "agent": "claude",
+  "mode": "disabled",
+  "task_success": true,
+  "execution_status": "completed",
+  "agent_exit_code": 0,
+  "wall_time_ns": 6822521505,
+  "workflow": {
+    "run_id": "20260930T193739.623-43675",
+    "batch": "phase7a-pilot",
+    "started_at": "2026-09-30T19:37:39Z",
+    "platform": "linux/amd64",
+    "category": "git-review",
+    "language": "go",
+    "agent_version": "2.1.286",
+    "model": "claude-sonnet-5-5",
+    "agentcap_version": "2f2c593b4639+dirty",
+    "adapter_version": "1",
+    "outcome": "PASS",
+    "shell_commands": 1,
+    "repeated_commands": 0,
+    "shell_visible_bytes": 4582,
+    "shell_visible_tokens_est": 1146,
+    "show_calls": 0,
+    "show_visible_bytes": 0,
+    "raw_calls": 0,
+    "raw_visible_bytes": 0,
+    "immediate_raw_calls": 0,
+    "acap_results": 0,
+    "instruction_bytes": 0,
+    "total_context_cost_bytes": 4582,
+    "total_context_cost_tokens_est": 1146,
+    "native_tool_calls": 1,
+    "native_tool_bytes": 112,
+    "family_bytes": {
+      "git": 4582
+    },
+    "family_count": {
+      "git": 1
+    },
+    "commands_intercepted": 0,
+    "commands_bypassed": 1,
+    "adapter_failures": 0,
+    "adapter_latency_ns": 0,
+    "core_latency_ns": 0,
+    "bypass_reasons": {
+      "explicit-bypass": 1
+    },
+    "full_results": 0,
+    "delta_results": 0,
+    "unchanged_results": 0,
+    "host_input_tokens": 6,
+    "host_cache_read_tokens": 38519,
+    "host_cache_write_tokens": 8151,
+    "host_output_tokens": 423,
+    "trace": [
+      {
+        "i": 1,
+        "tool": "shell",
+        "family": "git",
+        "command": "git diff",
+        "bytes": 4582
+      },
+      {
+        "i": 2,
+        "tool": "Edit",
+        "family": "native",
+        "bytes": 112
+      }
+    ]
+  }
+}

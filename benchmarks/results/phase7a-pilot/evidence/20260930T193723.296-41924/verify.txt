@@ -1,0 +1,52 @@
+$ [go build ./...] (exit 0, expected 0)
+
+$ [go test ./...] (exit 0, expected 0)
+ok  	inventory/api	(cached)
+?   	inventory/cmd/inventory	[no test files]
+ok  	inventory/errcatalog	(cached)
+ok  	inventory/lexer	(cached)
+ok  	inventory/query	(cached)
+ok  	inventory/report	(cached)
+?   	inventory/services/audit	[no test files]
+?   	inventory/services/billing	[no test files]
+?   	inventory/services/catalog	[no test files]
+?   	inventory/services/export	[no test files]
+?   	inventory/services/ingest	[no test files]
+?   	inventory/services/invoice	[no test files]
+?   	inventory/services/ledger	[no test files]
+?   	inventory/services/loyalty	[no test files]
+?   	inventory/services/pricing	[no test files]
+?   	inventory/services/promo	[no test files]
+?   	inventory/services/returns	[no test files]
+?   	inventory/services/session	[no test files]
+?   	inventory/services/shipping	[no test files]
+?   	inventory/services/tax	[no test files]
+?   	inventory/services/vendor	[no test files]
+?   	inventory/services/warehouse	[no test files]
+ok  	inventory/store	(cached)
+ok  	inventory/util	(cached)
+
+$ [git diff --quiet HEAD -- *_test.go] (exit 0, expected 0)
+
+$ [sh -c cat > errcatalog/zz_hidden_test.go <<'ACAP_HIDDEN'
+package errcatalog
+
+import "testing"
+
+func TestHiddenCatalog(t *testing.T) {
+	for _, w := range []string{"billing", "warehouse", "tax", "vendor"} {
+		if got := Status(w + ".limit"); got != 429 {
+			t.Errorf("%s.limit = %d, want 429", w, got)
+		}
+		if got := Status(w + ".timeout"); got != 500 {
+			t.Errorf("%s.timeout = %d, want 500", w, got)
+		}
+		if got := Status(w + ".locked"); got != 409 {
+			t.Errorf("%s.locked = %d, want 409", w, got)
+		}
+	}
+}
+ACAP_HIDDEN
+go test ./errcatalog/; rc=$?; rm -f errcatalog/zz_hidden_test.go; exit $rc] (exit 0, expected 0)
+ok  	inventory/errcatalog	0.003s
+

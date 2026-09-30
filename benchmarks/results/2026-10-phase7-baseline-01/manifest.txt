@@ -1,0 +1,21 @@
+batch: 2026-10-phase7-baseline-01
+started: 2026-09-30T19:46:28Z
+agentcap_commit: 2f2c593b4639acd5466a8b6acad81a153668d853
+agentcap_worktree_diff_sha256: 69d1b2f10b55c1c5
+platform: Linux 6.18.33.2-microsoft-standard-WSL2 x86_64
+go: go version go1.27.1 linux/amd64
+cc: cc (Debian 14.2.0-19) 14.2.0
+claude: 2.1.286 (Claude Code) model=claude-sonnet-5-5 permission_mode=bypassPermissions setting_sources=project
+antigravity: 1.2.14 model=gemini-3.8-flash-medium --dangerously-skip-permissions
+modes: disabled integrated  reps: 3  seed: 7
+timeout: per-workload (15m), identical for OFF and FULL
+cache_policy: warm (shared Go build cache, warmed once before the batch for both modes)
+tasks:
+  benchmarks/workloads/phase7/c-bugfix-ringbuf.yaml 7f0a845d110bbb80
+  benchmarks/workloads/phase7/cpp-compile-repair.yaml 7067a5539232d673
+  benchmarks/workloads/phase7/go-compile-repair.yaml 3f55c72075a98998
+  benchmarks/workloads/phase7/go-feature-csv.yaml 2be023faab4920b6
+  benchmarks/workloads/phase7/go-refactor-mathx.yaml 41ed2356c2d92bba
+  benchmarks/workloads/phase7/go-review-diff.yaml b7dd77a2116265c0
+  benchmarks/workloads/phase7/go-search-large.yaml 609000c77b8b4201
+  benchmarks/workloads/phase7/go-test-repair.yaml a6158aaf07ae3339

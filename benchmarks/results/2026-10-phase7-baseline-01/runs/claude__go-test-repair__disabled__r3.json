@@ -1,0 +1,102 @@
+{
+  "schema_version": 4,
+  "trial": 1,
+  "workload": "phase7/go-test-repair",
+  "commands": 3,
+  "raw_bytes": 3144,
+  "stateless_bytes": 3144,
+  "stateful_bytes": 3144,
+  "initial_visible_bytes": 3144,
+  "show_bytes": 0,
+  "raw_retrieval_bytes": 0,
+  "total_visible_bytes": 3144,
+  "show_count": 0,
+  "raw_retrieval_count": 0,
+  "processing_ns": 0,
+  "agent": "claude",
+  "mode": "disabled",
+  "task_success": true,
+  "execution_status": "completed",
+  "agent_exit_code": 0,
+  "wall_time_ns": 8660776528,
+  "workflow": {
+    "run_id": "20260930T195315.480-84300",
+    "batch": "2026-10-phase7-baseline-01",
+    "started_at": "2026-09-30T19:53:15Z",
+    "platform": "linux/amd64",
+    "category": "test-repair",
+    "language": "go",
+    "agent_version": "2.1.286",
+    "model": "claude-sonnet-5-5",
+    "agentcap_version": "2f2c593b4639+dirty",
+    "adapter_version": "1",
+    "outcome": "PASS",
+    "shell_commands": 3,
+    "repeated_commands": 0,
+    "shell_visible_bytes": 3144,
+    "shell_visible_tokens_est": 786,
+    "show_calls": 0,
+    "show_visible_bytes": 0,
+    "raw_calls": 0,
+    "raw_visible_bytes": 0,
+    "immediate_raw_calls": 0,
+    "acap_results": 0,
+    "instruction_bytes": 0,
+    "total_context_cost_bytes": 3144,
+    "total_context_cost_tokens_est": 786,
+    "native_tool_calls": 1,
+    "native_tool_bytes": 112,
+    "family_bytes": {
+      "search": 1701,
+      "test": 1443
+    },
+    "family_count": {
+      "search": 1,
+      "test": 2
+    },
+    "commands_intercepted": 0,
+    "commands_bypassed": 3,
+    "adapter_failures": 0,
+    "adapter_latency_ns": 0,
+    "core_latency_ns": 0,
+    "bypass_reasons": {
+      "explicit-bypass": 3
+    },
+    "full_results": 0,
+    "delta_results": 0,
+    "unchanged_results": 0,
+    "host_input_tokens": 8,
+    "host_cache_read_tokens": 51992,
+    "host_cache_write_tokens": 7557,
+    "host_output_tokens": 553,
+    "trace": [
+      {
+        "i": 1,
+        "tool": "shell",
+        "family": "test",
+        "command": "go test ./... 2\u003e\u00261 | head -40",
+        "bytes": 1227
+      },
+      {
+        "i": 2,
+        "tool": "shell",
+        "family": "search",
+        "command": "grep -n '\\\\\\\\' -B15 -A15 lexer/lexer.go | head -120",
+        "bytes": 1701
+      },
+      {
+        "i": 3,
+        "tool": "Edit",
+        "family": "native",
+        "bytes": 112
+      },
+      {
+        "i": 4,
+        "tool": "shell",
+        "family": "test",
+        "command": "go test ./... 2\u003e\u00261 | head -20",
+        "bytes": 216
+      }
+    ]
+  }
+}

@@ -32,6 +32,8 @@ type BenchmarkResult struct {
 	AgentExitCode   *int   `json:"agent_exit_code,omitempty"`
 	WallTimeNS      int64  `json:"wall_time_ns,omitempty"`
 
+	Workflow *WorkflowMetrics `json:"workflow,omitempty"`
+
 	// presentation contains B3 details used only by the human/verbose view.
 	presentation *Result
 }

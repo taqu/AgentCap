@@ -1,0 +1,12 @@
+diff --git a/lexer/lexer.go b/lexer/lexer.go
+index 86f1a09..d608c14 100644
+--- a/lexer/lexer.go
++++ b/lexer/lexer.go
+@@ -108,7 +108,6 @@ func readString(s string) (string, int, error) {
+ 				b.WriteByte(s[i])
+ 			case '\\':
+ 				b.WriteByte(s[i])
+-				i++
+ 			default:
+ 				return "", 0, fmt.Errorf("unknown escape \\%c", s[i])
+ 			}

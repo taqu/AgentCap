@@ -6,8 +6,10 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/taqu/agentcap/internal/benchreport"
 	"io"
 	"os"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -46,8 +48,9 @@ Usage:
   acap bench command [--json] [--session <id>] -- <command> [args...]
   acap bench session <start|show>
   acap bench run [--json] [--verbose] [--keep-workspace] <workload.yaml>
-  acap bench agent --workload <workload.yaml> --agent codex --mode <mode>
+  acap bench agent --workload <workload.yaml> --agent <codex|claude|antigravity> --mode <mode>
   acap bench compare [--json] <baseline.json> <candidate.json>
+  acap bench report [--run <run-id>] <batch-dir>
   acap bench suite --out <dir> <regression.yaml>
   acap bench check --baseline <path> --candidate <path> --policy <regression.yaml>
   acap session <start|info|list|history>
@@ -160,7 +163,7 @@ Flags:
   --keep-workspace  Retain and print the temporary workspace path.
 `
 
-const benchAgentUsage = `Usage: acap bench agent --workload <workload.yaml> --agent codex --mode <mode> [flags]
+const benchAgentUsage = `Usage: acap bench agent --workload <workload.yaml> --agent <codex|claude|antigravity> --mode <mode> [flags]
 
 Runs one or more independent coding-agent trials in fresh fixture workspaces,
 then executes each verifier outside the agent-visible measurement boundary.
@@ -173,7 +176,10 @@ Modes (required):
 
 Flags:
   --workload <path>  Coding-agent workload YAML (required).
-  --agent <name>     Agent adapter; currently codex (required).
+  --agent <name>     Agent adapter: codex, claude, antigravity (required).
+                     claude/antigravity use their production hooks and support
+                     only disabled (OFF, via ACAP_BENCH_MODE bypass) and
+                     integrated (FULL).
   --mode <mode>      Comparison mode (required).
   --model <model>    Optional agent model override.
   --timeout <dur>    Agent timeout override (for example 10m).
@@ -181,6 +187,8 @@ Flags:
   --json             Print the versioned result as JSON only.
   --verbose          Send captured agent logs to stderr.
   --keep-workspace   Retain and print the temporary workspace path.
+  --batch <id>       Benchmark batch ID recorded in every run.
+  --evidence-dir <d> Retain per-run transcript, diff, and verifier output.
 `
 
 const benchCompareUsage = `Usage: acap bench compare [--json] <baseline.json> <candidate.json>
@@ -986,6 +994,8 @@ func benchCmd(args []string) {
 		benchAgentCmd(args[1:])
 	case "compare":
 		benchCompareCmd(args[1:])
+	case "report":
+		benchReportCmd(args[1:])
 	case "suite":
 		benchSuiteCmd(args[1:])
 	case "check":
@@ -1008,6 +1018,8 @@ func benchAgentCmd(args []string) {
 	jsonFlag := fs.Bool("json", false, "print JSON result")
 	verboseFlag := fs.Bool("verbose", false, "print captured agent logs to stderr")
 	keepFlag := fs.Bool("keep-workspace", false, "retain temporary workspace")
+	batchFlag := fs.String("batch", "", "benchmark batch ID recorded in every run")
+	evidenceFlag := fs.String("evidence-dir", "", "directory for per-run raw evidence")
 	if len(args) > 0 && (args[0] == "--help" || args[0] == "-h") {
 		fmt.Fprint(os.Stdout, benchAgentUsage)
 		os.Exit(0)
@@ -1046,6 +1058,7 @@ func benchAgentCmd(args []string) {
 		Adapter: adapter, Mode: mode, StoreRoot: project.FindRoot(cwd),
 		Timeout: *timeoutFlag, KeepWorkspace: *keepFlag,
 		HookCommand: hookCommand, Model: *modelFlag,
+		Batch: *batchFlag, EvidenceDir: *evidenceFlag, AcapVersion: buildRevision(),
 	}, *repeatFlag)
 	if *verboseFlag {
 		for i, trial := range runTrials(run) {
@@ -1824,4 +1837,72 @@ func reducerTypeName(r reduce.Reducer) string {
 	default:
 		return "unknown"
 	}
+}
+
+// buildRevision identifies the AgentCap build for benchmark records.
+func buildRevision() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return ""
+	}
+	rev, dirty := "", ""
+	for _, s := range info.Settings {
+		switch s.Key {
+		case "vcs.revision":
+			rev = s.Value
+		case "vcs.modified":
+			if s.Value == "true" {
+				dirty = "+dirty"
+			}
+		}
+	}
+	if len(rev) > 12 {
+		rev = rev[:12]
+	}
+	return rev + dirty
+}
+
+const benchReportUsage = `Usage: acap bench report [--run <run-id>] <batch-dir>
+
+Aggregates coding-agent trial JSON results (written by "acap bench agent --json")
+found below <batch-dir> into a Markdown report: per-agent OFF/FULL success and
+context cost, per-task paired comparisons, task categories, command families,
+drill-down/raw fallback, adapter/core latency, and anomalies. Adapter-corrupted
+and infrastructure-error runs are listed but excluded from aggregates.
+
+--run prints one run's metadata, ordered command timeline, and metrics.
+`
+
+func benchReportCmd(args []string) {
+	fs := flag.NewFlagSet("bench report", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	runFlag := fs.String("run", "", "inspect one run ID")
+	if len(args) > 0 && (args[0] == "--help" || args[0] == "-h") {
+		fmt.Fprint(os.Stdout, benchReportUsage)
+		os.Exit(0)
+	}
+	if err := fs.Parse(args); err != nil || fs.NArg() != 1 {
+		fmt.Fprint(os.Stderr, benchReportUsage)
+		os.Exit(1)
+	}
+	records, err := benchreport.Load(fs.Arg(0))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "acap: bench report: %v\n", err)
+		os.Exit(1)
+	}
+	if *runFlag != "" {
+		for _, r := range records {
+			if r.Workflow.RunID == *runFlag {
+				benchreport.WriteRun(os.Stdout, r)
+				return
+			}
+		}
+		fmt.Fprintf(os.Stderr, "acap: bench report: run %s not found\n", *runFlag)
+		os.Exit(1)
+	}
+	if len(records) == 0 {
+		fmt.Fprintln(os.Stderr, "acap: bench report: no coding-agent results found")
+		os.Exit(1)
+	}
+	benchreport.Write(os.Stdout, records)
 }

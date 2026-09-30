@@ -1,0 +1,9 @@
+ M include/geometry.hpp
+ M src/shapes.cpp
+?? .agents/
+?? run_tests
+?? scene_demo
+?? src/render.o
+?? src/scene.o
+?? src/shapes.o
+?? src/stats.o

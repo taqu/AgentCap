@@ -1,0 +1,103 @@
+{
+  "schema_version": 4,
+  "trial": 1,
+  "workload": "phase7/c-bugfix-ringbuf",
+  "commands": 4,
+  "raw_bytes": 8072,
+  "stateless_bytes": 8072,
+  "stateful_bytes": 8072,
+  "initial_visible_bytes": 8072,
+  "show_bytes": 0,
+  "raw_retrieval_bytes": 0,
+  "total_visible_bytes": 8072,
+  "show_count": 0,
+  "raw_retrieval_count": 0,
+  "processing_ns": 0,
+  "agent": "claude",
+  "mode": "disabled",
+  "task_success": true,
+  "execution_status": "completed",
+  "agent_exit_code": 0,
+  "wall_time_ns": 11404907754,
+  "workflow": {
+    "run_id": "20260930T194644.343-60744",
+    "batch": "2026-10-phase7-baseline-01",
+    "started_at": "2026-09-30T19:46:44Z",
+    "platform": "linux/amd64",
+    "category": "bug-fix",
+    "language": "c",
+    "agent_version": "2.1.286",
+    "model": "claude-sonnet-5-5",
+    "agentcap_version": "2f2c593b4639+dirty",
+    "adapter_version": "1",
+    "outcome": "PASS",
+    "shell_commands": 4,
+    "repeated_commands": 0,
+    "shell_visible_bytes": 8072,
+    "shell_visible_tokens_est": 2018,
+    "show_calls": 0,
+    "show_visible_bytes": 0,
+    "raw_calls": 0,
+    "raw_visible_bytes": 0,
+    "immediate_raw_calls": 0,
+    "acap_results": 0,
+    "instruction_bytes": 0,
+    "total_context_cost_bytes": 8072,
+    "total_context_cost_tokens_est": 2018,
+    "native_tool_calls": 0,
+    "native_tool_bytes": 0,
+    "family_bytes": {
+      "file-read": 2900,
+      "test": 5172
+    },
+    "family_count": {
+      "file-read": 2,
+      "test": 2
+    },
+    "commands_intercepted": 0,
+    "commands_bypassed": 4,
+    "adapter_failures": 0,
+    "adapter_latency_ns": 0,
+    "core_latency_ns": 0,
+    "bypass_reasons": {
+      "explicit-bypass": 4
+    },
+    "full_results": 0,
+    "delta_results": 0,
+    "unchanged_results": 0,
+    "host_input_tokens": 10,
+    "host_cache_read_tokens": 71920,
+    "host_cache_write_tokens": 10344,
+    "host_output_tokens": 511,
+    "trace": [
+      {
+        "i": 1,
+        "tool": "shell",
+        "family": "test",
+        "command": "make test 2\u003e\u00261 | tail -30; ls src",
+        "bytes": 759
+      },
+      {
+        "i": 2,
+        "tool": "shell",
+        "family": "test",
+        "command": "make test 2\u003e\u00261 | grep -v '^ok'; cat src/hashmap.c",
+        "bytes": 4413
+      },
+      {
+        "i": 3,
+        "tool": "shell",
+        "family": "file-read",
+        "command": "cat src/ringbuf.c; grep -n -B3 -A12 ringbuf include/collections.h | head -50; sed -n 1,30p tests/test_ringbuf.c",
+        "bytes": 2857
+      },
+      {
+        "i": 4,
+        "tool": "shell",
+        "family": "file-read",
+        "command": "sed -i 's/rb-\u003edata\\[rb-\u003elen % rb-\u003ecap\\]/rb-\u003edata[(rb-\u003ehead + rb-\u003elen) % rb-\u003ecap]/' src/ringbuf.c \u0026\u0026 make test 2\u003e\u00261 | tail -2",
+        "bytes": 43
+      }
+    ]
+  }
+}

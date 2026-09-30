@@ -1,0 +1,342 @@
+{
+  "schema_version": 4,
+  "trial": 1,
+  "workload": "phase7/go-search-large",
+  "commands": 22,
+  "raw_bytes": 912603,
+  "stateless_bytes": 41974,
+  "stateful_bytes": 41974,
+  "initial_visible_bytes": 41974,
+  "show_bytes": 0,
+  "raw_retrieval_bytes": 0,
+  "total_visible_bytes": 41974,
+  "show_count": 0,
+  "raw_retrieval_count": 0,
+  "processing_ns": 37857483,
+  "agent": "antigravity",
+  "mode": "integrated",
+  "task_success": false,
+  "execution_status": "completed",
+  "agent_exit_code": 0,
+  "wall_time_ns": 129825533343,
+  "workflow": {
+    "run_id": "20260930T193858.012-44610",
+    "batch": "phase7a-pilot",
+    "started_at": "2026-09-30T19:38:58Z",
+    "platform": "linux/amd64",
+    "category": "search",
+    "language": "go",
+    "agent_version": "1.2.14",
+    "model": "gemini-3.8-flash-medium",
+    "agentcap_version": "2f2c593b4639+dirty",
+    "adapter_version": "1",
+    "outcome": "FAIL",
+    "shell_commands": 22,
+    "repeated_commands": 1,
+    "shell_visible_bytes": 32764,
+    "shell_visible_tokens_est": 8191,
+    "show_calls": 0,
+    "show_visible_bytes": 0,
+    "raw_calls": 0,
+    "raw_visible_bytes": 0,
+    "immediate_raw_calls": 0,
+    "acap_results": 19,
+    "instruction_bytes": 0,
+    "total_context_cost_bytes": 32764,
+    "total_context_cost_tokens_est": 8191,
+    "native_tool_calls": 12,
+    "native_tool_bytes": 192,
+    "family_bytes": {
+      "file-read": 2830,
+      "git": 1587,
+      "listing": 1578,
+      "search": 26658,
+      "test": 111
+    },
+    "family_count": {
+      "file-read": 1,
+      "git": 6,
+      "listing": 3,
+      "search": 9,
+      "test": 3
+    },
+    "commands_intercepted": 22,
+    "commands_bypassed": 0,
+    "adapter_failures": 0,
+    "adapter_latency_ns": 3128957,
+    "core_latency_ns": 37857483,
+    "full_results": 19,
+    "delta_results": 0,
+    "unchanged_results": 0,
+    "host_input_tokens": 237335,
+    "host_cache_read_tokens": 701660,
+    "host_cache_write_tokens": 0,
+    "host_output_tokens": 11429,
+    "trace": [
+      {
+        "i": 1,
+        "tool": "shell",
+        "family": "git",
+        "command": "git status \u0026\u0026 ls -la",
+        "bytes": 916,
+        "result_id": "7d6ba5",
+        "kind": "full"
+      },
+      {
+        "i": 2,
+        "tool": "shell",
+        "family": "test",
+        "command": "go test ./...",
+        "bytes": 37,
+        "result_id": "47d0ec",
+        "kind": "full"
+      },
+      {
+        "i": 3,
+        "tool": "shell",
+        "family": "search",
+        "command": "grep -rn -i \"429\" .",
+        "bytes": 13,
+        "result_id": "d1d3a5",
+        "kind": "full"
+      },
+      {
+        "i": 4,
+        "tool": "shell",
+        "family": "search",
+        "command": "grep -rn -i \"capacity\" .",
+        "bytes": 13,
+        "result_id": "ac2a70",
+        "kind": "full"
+      },
+      {
+        "i": 5,
+        "tool": "shell",
+        "family": "listing",
+        "command": "ls -la errcatalog api",
+        "bytes": 1265,
+        "result_id": "c02583",
+        "kind": "full"
+      },
+      {
+        "i": 6,
+        "tool": "view_file",
+        "family": "native",
+        "bytes": 19
+      },
+      {
+        "i": 7,
+        "tool": "view_file",
+        "family": "native",
+        "bytes": 19
+      },
+      {
+        "i": 8,
+        "tool": "shell",
+        "family": "search",
+        "command": "grep -rn \"warehouse.limit\" .",
+        "bytes": 8031
+      },
+      {
+        "i": 9,
+        "tool": "view_file",
+        "family": "native",
+        "bytes": 20
+      },
+      {
+        "i": 10,
+        "tool": "shell",
+        "family": "search",
+        "command": "grep -rn \"api.CodeQuota\" errcatalog/",
+        "bytes": 803,
+        "result_id": "552f30",
+        "kind": "full"
+      },
+      {
+        "i": 11,
+        "tool": "view_file",
+        "family": "native",
+        "bytes": 19
+      },
+      {
+        "i": 12,
+        "tool": "view_file",
+        "family": "native",
+        "bytes": 19
+      },
+      {
+        "i": 13,
+        "tool": "view_file",
+        "family": "native",
+        "bytes": 20
+      },
+      {
+        "i": 14,
+        "tool": "view_file",
+        "family": "native",
+        "bytes": 20
+      },
+      {
+        "i": 15,
+        "tool": "shell",
+        "family": "search",
+        "command": "grep -rn \"errcatalog\" .",
+        "bytes": 8067
+      },
+      {
+        "i": 16,
+        "tool": "shell",
+        "family": "listing",
+        "command": "ls -la cmd/",
+        "bytes": 159,
+        "result_id": "93b664",
+        "kind": "full"
+      },
+      {
+        "i": 17,
+        "tool": "shell",
+        "family": "listing",
+        "command": "ls -la cmd/inventory",
+        "bytes": 154,
+        "result_id": "7b11d3",
+        "kind": "full"
+      },
+      {
+        "i": 18,
+        "tool": "view_file",
+        "family": "native",
+        "bytes": 19
+      },
+      {
+        "i": 19,
+        "tool": "shell",
+        "family": "git",
+        "command": "git log -n 5",
+        "bytes": 58,
+        "result_id": "e0d859",
+        "kind": "full"
+      },
+      {
+        "i": 20,
+        "tool": "view_file",
+        "family": "native",
+        "bytes": 18
+      },
+      {
+        "i": 21,
+        "tool": "shell",
+        "family": "file-read",
+        "command": "head -n 20 errcatalog/*.go",
+        "bytes": 2830,
+        "result_id": "55bf29",
+        "kind": "full"
+      },
+      {
+        "i": 22,
+        "tool": "shell",
+        "family": "search",
+        "command": "grep -rn \"Status(\" .",
+        "bytes": 275,
+        "result_id": "3d3855",
+        "kind": "full"
+      },
+      {
+        "i": 23,
+        "tool": "shell",
+        "family": "search",
+        "command": "git grep -i \"capacity\"",
+        "bytes": 13,
+        "result_id": "1246df",
+        "kind": "full"
+      },
+      {
+        "i": 24,
+        "tool": "shell",
+        "family": "search",
+        "command": "git grep \"warehouse\"",
+        "bytes": 8062
+      },
+      {
+        "i": 25,
+        "tool": "shell",
+        "family": "git",
+        "command": "git log -p",
+        "bytes": 58,
+        "result_id": "81fc6d",
+        "kind": "full"
+      },
+      {
+        "i": 26,
+        "tool": "shell",
+        "family": "search",
+        "command": "grep -rn \"inventory/\" .",
+        "bytes": 1381,
+        "result_id": "70964c",
+        "kind": "full"
+      },
+      {
+        "i": 27,
+        "tool": "replace_file_content",
+        "family": "native",
+        "bytes": 0
+      },
+      {
+        "i": 28,
+        "tool": "view_file",
+        "family": "native",
+        "bytes": 19
+      },
+      {
+        "i": 29,
+        "tool": "replace_file_content",
+        "family": "native",
+        "bytes": 0
+      },
+      {
+        "i": 30,
+        "tool": "shell",
+        "family": "test",
+        "command": "go test -v ./...",
+        "bytes": 37,
+        "result_id": "fec7bf",
+        "kind": "full"
+      },
+      {
+        "i": 31,
+        "tool": "shell",
+        "family": "git",
+        "command": "git diff",
+        "bytes": 213,
+        "result_id": "ed2a6b",
+        "kind": "full"
+      },
+      {
+        "i": 32,
+        "tool": "shell",
+        "family": "git",
+        "command": "git diff -u",
+        "bytes": 213,
+        "result_id": "812679",
+        "kind": "full"
+      },
+      {
+        "i": 33,
+        "tool": "shell",
+        "family": "git",
+        "command": "git status",
+        "bytes": 129,
+        "result_id": "cb540e",
+        "kind": "full"
+      },
+      {
+        "i": 34,
+        "tool": "shell",
+        "family": "test",
+        "command": "go test ./...",
+        "bytes": 37,
+        "result_id": "ce746f",
+        "kind": "full"
+      }
+    ]
+  }
+}

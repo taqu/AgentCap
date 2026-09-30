@@ -1,0 +1,17 @@
+$ [sh -c make -s clean >/dev/null 2>&1; make -s && make -s test] (exit 0, expected 0)
+ok   circle area
+ok   rect area
+ok   triangle area
+ok   triangle perimeter
+ok   total area
+ok   by_area size
+ok   by_area last is circle
+ok   summary max
+ok   summary min
+ok   render mentions roof-less scene
+0 failures
+
+$ [git diff --quiet HEAD -- tests] (exit 0, expected 0)
+
+$ [grep -q virtual double area() const = 0; include/geometry.hpp] (exit 0, expected 0)
+

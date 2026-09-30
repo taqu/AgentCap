@@ -1,0 +1,19 @@
+$ [go build ./...] (exit 1, expected 0)
+# inventory/report
+report/report.go:35:23: not enough arguments in call to s.Get
+	have (string)
+	want (context.Context, string)
+report/report.go:46:21: not enough arguments in call to s.Get
+	have (string)
+	want (context.Context, string)
+# inventory/api
+api/handlers.go:40:25: not enough arguments in call to s.Store.Get
+	have (string)
+	want (context.Context, string)
+api/handlers.go:58:27: not enough arguments in call to s.Store.Get
+	have (string)
+	want (context.Context, string)
+api/handlers.go:82:25: not enough arguments in call to s.Store.Get
+	have (string)
+	want (context.Context, string)
+

@@ -1,0 +1,6 @@
+1 benchmarks/workloads/phase7/go-review-diff.yaml integrated
+1 benchmarks/workloads/phase7/cpp-compile-repair.yaml disabled
+1 benchmarks/workloads/phase7/go-search-large.yaml disabled
+1 benchmarks/workloads/phase7/cpp-compile-repair.yaml integrated
+1 benchmarks/workloads/phase7/go-search-large.yaml integrated
+1 benchmarks/workloads/phase7/go-review-diff.yaml disabled

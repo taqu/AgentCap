@@ -1,0 +1,103 @@
+{
+  "schema_version": 4,
+  "trial": 1,
+  "workload": "phase7/c-bugfix-ringbuf",
+  "commands": 3,
+  "raw_bytes": 4805,
+  "stateless_bytes": 4881,
+  "stateful_bytes": 4881,
+  "initial_visible_bytes": 4881,
+  "show_bytes": 0,
+  "raw_retrieval_bytes": 0,
+  "total_visible_bytes": 4881,
+  "show_count": 0,
+  "raw_retrieval_count": 0,
+  "processing_ns": 3269713,
+  "agent": "claude",
+  "mode": "integrated",
+  "task_success": true,
+  "execution_status": "completed",
+  "agent_exit_code": 0,
+  "wall_time_ns": 9272715824,
+  "workflow": {
+    "run_id": "20260930T194851.617-69565",
+    "batch": "2026-10-phase7-baseline-01",
+    "started_at": "2026-09-30T19:48:51Z",
+    "platform": "linux/amd64",
+    "category": "bug-fix",
+    "language": "c",
+    "agent_version": "2.1.286",
+    "model": "claude-sonnet-5-5",
+    "agentcap_version": "2f2c593b4639+dirty",
+    "adapter_version": "1",
+    "outcome": "PASS",
+    "shell_commands": 3,
+    "repeated_commands": 0,
+    "shell_visible_bytes": 4878,
+    "shell_visible_tokens_est": 1220,
+    "show_calls": 0,
+    "show_visible_bytes": 0,
+    "raw_calls": 0,
+    "raw_visible_bytes": 0,
+    "immediate_raw_calls": 0,
+    "acap_results": 3,
+    "instruction_bytes": 0,
+    "total_context_cost_bytes": 4878,
+    "total_context_cost_tokens_est": 1220,
+    "native_tool_calls": 1,
+    "native_tool_bytes": 112,
+    "family_bytes": {
+      "test": 4878
+    },
+    "family_count": {
+      "test": 3
+    },
+    "commands_intercepted": 3,
+    "commands_bypassed": 0,
+    "adapter_failures": 0,
+    "adapter_latency_ns": 273884,
+    "core_latency_ns": 3269713,
+    "full_results": 3,
+    "delta_results": 0,
+    "unchanged_results": 0,
+    "host_input_tokens": 8,
+    "host_cache_read_tokens": 53246,
+    "host_cache_write_tokens": 8780,
+    "host_output_tokens": 523,
+    "trace": [
+      {
+        "i": 1,
+        "tool": "shell",
+        "family": "test",
+        "command": "make test 2\u003e\u00261 | tail -30; ls src",
+        "bytes": 772,
+        "result_id": "287d9b",
+        "kind": "full"
+      },
+      {
+        "i": 2,
+        "tool": "shell",
+        "family": "test",
+        "command": "make test 2\u003e\u00261 | grep -v '^ok'; cat src/ringbuf.c",
+        "bytes": 4026,
+        "result_id": "ecd59c",
+        "kind": "full"
+      },
+      {
+        "i": 3,
+        "tool": "Edit",
+        "family": "native",
+        "bytes": 112
+      },
+      {
+        "i": 4,
+        "tool": "shell",
+        "family": "test",
+        "command": "make test 2\u003e\u00261 | tail -3",
+        "bytes": 80,
+        "result_id": "4792c5",
+        "kind": "full"
+      }
+    ]
+  }
+}

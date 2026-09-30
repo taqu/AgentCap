@@ -1,0 +1,208 @@
+{
+  "schema_version": 4,
+  "trial": 1,
+  "workload": "phase7/cpp-compile-repair",
+  "commands": 9,
+  "raw_bytes": 8127,
+  "stateless_bytes": 8127,
+  "stateful_bytes": 8127,
+  "initial_visible_bytes": 8127,
+  "show_bytes": 0,
+  "raw_retrieval_bytes": 0,
+  "total_visible_bytes": 8127,
+  "show_count": 0,
+  "raw_retrieval_count": 0,
+  "processing_ns": 0,
+  "agent": "antigravity",
+  "mode": "disabled",
+  "task_success": true,
+  "execution_status": "completed",
+  "agent_exit_code": 0,
+  "wall_time_ns": 72786998460,
+  "workflow": {
+    "run_id": "20260930T194200.713-46795",
+    "batch": "phase7a-pilot",
+    "started_at": "2026-09-30T19:42:00Z",
+    "platform": "linux/amd64",
+    "category": "compile-repair",
+    "language": "cpp",
+    "agent_version": "1.2.14",
+    "model": "gemini-3.8-flash-medium",
+    "agentcap_version": "2f2c593b4639+dirty",
+    "adapter_version": "1",
+    "outcome": "PASS",
+    "shell_commands": 9,
+    "repeated_commands": 2,
+    "shell_visible_bytes": 8127,
+    "shell_visible_tokens_est": 2032,
+    "show_calls": 0,
+    "show_visible_bytes": 0,
+    "raw_calls": 0,
+    "raw_visible_bytes": 0,
+    "immediate_raw_calls": 0,
+    "acap_results": 0,
+    "instruction_bytes": 0,
+    "total_context_cost_bytes": 8127,
+    "total_context_cost_tokens_est": 2032,
+    "native_tool_calls": 11,
+    "native_tool_bytes": 174,
+    "family_bytes": {
+      "build": 2163,
+      "git": 3202,
+      "listing": 1244,
+      "test": 1518
+    },
+    "family_count": {
+      "build": 3,
+      "git": 2,
+      "listing": 1,
+      "test": 3
+    },
+    "commands_intercepted": 0,
+    "commands_bypassed": 9,
+    "adapter_failures": 0,
+    "adapter_latency_ns": 0,
+    "core_latency_ns": 0,
+    "bypass_reasons": {
+      "explicit-bypass": 9
+    },
+    "full_results": 0,
+    "delta_results": 0,
+    "unchanged_results": 0,
+    "host_input_tokens": 182719,
+    "host_cache_read_tokens": 239277,
+    "host_cache_write_tokens": 0,
+    "host_output_tokens": 6615,
+    "trace": [
+      {
+        "i": 1,
+        "tool": "shell",
+        "family": "build",
+        "command": "make",
+        "bytes": 1245
+      },
+      {
+        "i": 2,
+        "tool": "view_file",
+        "family": "native",
+        "bytes": 20
+      },
+      {
+        "i": 3,
+        "tool": "view_file",
+        "family": "native",
+        "bytes": 20
+      },
+      {
+        "i": 4,
+        "tool": "shell",
+        "family": "listing",
+        "command": "find . -maxdepth 3",
+        "bytes": 1244
+      },
+      {
+        "i": 5,
+        "tool": "view_file",
+        "family": "native",
+        "bytes": 19
+      },
+      {
+        "i": 6,
+        "tool": "view_file",
+        "family": "native",
+        "bytes": 19
+      },
+      {
+        "i": 7,
+        "tool": "view_file",
+        "family": "native",
+        "bytes": 20
+      },
+      {
+        "i": 8,
+        "tool": "view_file",
+        "family": "native",
+        "bytes": 19
+      },
+      {
+        "i": 9,
+        "tool": "view_file",
+        "family": "native",
+        "bytes": 19
+      },
+      {
+        "i": 10,
+        "tool": "view_file",
+        "family": "native",
+        "bytes": 19
+      },
+      {
+        "i": 11,
+        "tool": "view_file",
+        "family": "native",
+        "bytes": 19
+      },
+      {
+        "i": 12,
+        "tool": "replace_file_content",
+        "family": "native",
+        "bytes": 0
+      },
+      {
+        "i": 13,
+        "tool": "replace_file_content",
+        "family": "native",
+        "bytes": 0
+      },
+      {
+        "i": 14,
+        "tool": "shell",
+        "family": "test",
+        "command": "make clean \u0026\u0026 make \u0026\u0026 make test",
+        "bytes": 812
+      },
+      {
+        "i": 15,
+        "tool": "shell",
+        "family": "git",
+        "command": "git diff",
+        "bytes": 2722
+      },
+      {
+        "i": 16,
+        "tool": "shell",
+        "family": "git",
+        "command": "git status",
+        "bytes": 480
+      },
+      {
+        "i": 17,
+        "tool": "shell",
+        "family": "build",
+        "command": "make clean \u0026\u0026 make",
+        "bytes": 459
+      },
+      {
+        "i": 18,
+        "tool": "shell",
+        "family": "test",
+        "command": "make test",
+        "bytes": 353
+      },
+      {
+        "i": 19,
+        "tool": "shell",
+        "family": "build",
+        "command": "make clean \u0026\u0026 make",
+        "bytes": 459
+      },
+      {
+        "i": 20,
+        "tool": "shell",
+        "family": "test",
+        "command": "make test",
+        "bytes": 353
+      }
+    ]
+  }
+}

@@ -1,0 +1,58 @@
+diff --git a/report/report.go b/report/report.go
+index 82d6b76..a6e911c 100644
+--- a/report/report.go
++++ b/report/report.go
+@@ -10,11 +10,13 @@ import (
+ 	"inventory/util"
+ )
+ 
+-// Render formats items. Supported formats: "table".
++// Render formats items. Supported formats: "table", "csv".
+ func Render(items []store.Item, format string) (string, error) {
+ 	switch format {
+ 	case "table", "":
+ 		return table(items), nil
++	case "csv":
++		return csvFormat(items), nil
+ 	}
+ 	return "", fmt.Errorf("unknown format %q", format)
+ }
+@@ -28,6 +30,22 @@ func table(items []store.Item) string {
+ 	return b.String()
+ }
+ 
++func csvFormat(items []store.Item) string {
++	var b strings.Builder
++	b.WriteString("sku,name,qty,price\n")
++	for _, it := range items {
++		fmt.Fprintf(&b, "%s,%s,%d,%.2f\n", csvField(it.SKU), csvField(it.Name), it.Qty, it.Price)
++	}
++	return b.String()
++}
++
++func csvField(s string) string {
++	if !strings.ContainsAny(s, ",\"\n\r") {
++		return s
++	}
++	return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
++}
++
+ // Lookup renders the named SKUs, skipping unknown ones.
+ func Lookup(ctx context.Context, s *store.Store, skus []string) string {
+ 	var items []store.Item
+diff --git a/report/report_test.go b/report/report_test.go
+index d166aa5..4a0f43a 100644
+--- a/report/report_test.go
++++ b/report/report_test.go
+@@ -30,3 +30,11 @@ func TestLowStock(t *testing.T) {
+ 		t.Fatal("Lookup")
+ 	}
+ }
++
++func TestCSV(t *testing.T) {
++	out, err := Render([]store.Item{{SKU: "B-1", Name: `a,"b"`, Qty: 2, Price: 1.5}, {SKU: "C", Name: "x\ny", Qty: 0, Price: 0.255}}, "csv")
++	want := "sku,name,qty,price\nB-1,\"a,\"\"b\"\"\",2,1.50\nC,\"x\ny\",0,0.26\n"
++	if err != nil || out != want {
++		t.Fatalf("csv: %q %v", out, err)
++	}
++}

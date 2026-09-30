@@ -160,7 +160,7 @@ func TestGitStatusReducerShort(t *testing.T) {
 
 func TestSelectGit(t *testing.T) {
 	cases := []struct {
-		args    []string
+		args     []string
 		wantType string
 	}{
 		{[]string{"git", "status"}, "*reduce.GitStatusReducer"},

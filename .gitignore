@@ -30,3 +30,4 @@ go.work.sum
 # AgentCap
 .acap/
 .tmp/
+benchmarks/results/*/bin/

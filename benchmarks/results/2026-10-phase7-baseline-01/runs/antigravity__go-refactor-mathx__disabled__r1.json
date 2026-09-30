@@ -1,0 +1,89 @@
+{
+  "schema_version": 4,
+  "trial": 1,
+  "workload": "phase7/go-refactor-mathx",
+  "commands": 2,
+  "raw_bytes": 213,
+  "stateless_bytes": 213,
+  "stateful_bytes": 213,
+  "initial_visible_bytes": 213,
+  "show_bytes": 0,
+  "raw_retrieval_bytes": 0,
+  "total_visible_bytes": 213,
+  "show_count": 0,
+  "raw_retrieval_count": 0,
+  "processing_ns": 0,
+  "agent": "antigravity",
+  "mode": "disabled",
+  "task_success": false,
+  "execution_status": "agent_error",
+  "agent_exit_code": 3,
+  "wall_time_ns": 10640917038,
+  "workflow": {
+    "run_id": "20260930T194710.231-61679",
+    "batch": "2026-10-phase7-baseline-01",
+    "started_at": "2026-09-30T19:47:10Z",
+    "platform": "linux/amd64",
+    "category": "refactor",
+    "language": "go",
+    "agent_version": "1.2.14",
+    "model": "gemini-3.8-flash-medium",
+    "agentcap_version": "2f2c593b4639+dirty",
+    "adapter_version": "1",
+    "outcome": "FAIL",
+    "shell_commands": 2,
+    "repeated_commands": 0,
+    "shell_visible_bytes": 213,
+    "shell_visible_tokens_est": 54,
+    "show_calls": 0,
+    "show_visible_bytes": 0,
+    "raw_calls": 0,
+    "raw_visible_bytes": 0,
+    "immediate_raw_calls": 0,
+    "acap_results": 0,
+    "instruction_bytes": 0,
+    "total_context_cost_bytes": 213,
+    "total_context_cost_tokens_est": 54,
+    "native_tool_calls": 0,
+    "native_tool_bytes": 0,
+    "family_bytes": {
+      "file-read": 26,
+      "git": 187
+    },
+    "family_count": {
+      "file-read": 1,
+      "git": 1
+    },
+    "commands_intercepted": 0,
+    "commands_bypassed": 2,
+    "adapter_failures": 0,
+    "adapter_latency_ns": 0,
+    "core_latency_ns": 0,
+    "bypass_reasons": {
+      "explicit-bypass": 2
+    },
+    "full_results": 0,
+    "delta_results": 0,
+    "unchanged_results": 0,
+    "host_input_tokens": 24971,
+    "host_cache_read_tokens": 0,
+    "host_cache_write_tokens": 0,
+    "host_output_tokens": 492,
+    "trace": [
+      {
+        "i": 1,
+        "tool": "shell",
+        "family": "git",
+        "command": "git status",
+        "bytes": 187
+      },
+      {
+        "i": 2,
+        "tool": "shell",
+        "family": "file-read",
+        "command": "head -n 20 go.mod",
+        "bytes": 26
+      }
+    ]
+  }
+}

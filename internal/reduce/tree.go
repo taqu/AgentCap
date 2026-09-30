@@ -2,9 +2,9 @@ package reduce
 
 import (
 	"fmt"
-	"strings"
 	"github.com/taqu/agentcap/internal/clean"
 	"github.com/taqu/agentcap/internal/exec"
+	"strings"
 )
 
 // TreeReducer handles tree output.
@@ -153,4 +153,3 @@ func treeLineDepth(line string) int {
 	}
 	return depth
 }
-
