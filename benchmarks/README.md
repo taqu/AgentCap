@@ -229,3 +229,76 @@ in `trials`, so the median never hides outliers.
 
 B7 does not compare modes, rank configurations, calculate significance, or
 apply CI thresholds. Those remain separate later phases.
+
+## Comparing results
+
+```text
+acap bench compare [--json] <baseline.json> <candidate.json>
+```
+
+`acap bench compare` reads two JSON results previously written by
+`acap bench run --json` or `acap bench agent --json`. It never executes a
+workload, coding agent, verifier, or AgentCap processing, and never modifies
+its inputs.
+
+- The first input is the **baseline**, the second the **candidate**.
+- Every absolute delta is `candidate - baseline`; a negative byte delta means
+  the candidate used fewer bytes, a positive wall-time delta means it took
+  longer.
+- The relative delta is `(candidate - baseline) / baseline` and is `null`
+  (omitted in the human view) when the baseline is zero.
+
+Dimensions reported independently:
+
+| dimension | repeated results | single results |
+|---|---|---|
+| task success | `success_count/trial_count` per side | `1/1` or `0/1` |
+| agent-visible bytes | `median_total_visible_bytes` | `total_visible_bytes` |
+| command count | `median_command_count` | `command_count` |
+| wall time | `median_wall_time_ns` | `wall_time_ns` (agent results only) |
+| show/raw recovery | `trials_with_show`, `trials_with_raw_retrieval`, `total_show_count`, `total_raw_retrieval_count` | `show_count`, `raw_retrieval_count`, `show_bytes`, `raw_retrieval_bytes` |
+| AgentCap processing | `median_processing_ns` | `processing_ns` |
+
+Repeated results are compared using their recorded B7 aggregates; medians are
+not recomputed. Timeouts, agent errors, and cancellations are also reported as
+per-side outcome counts. Outcome counts are shown as `count/total` side by side
+and are never reduced to a delta. Summed totals (`total_show_count`,
+`total_raw_retrieval_count`) get a delta only when both sides have the same
+trial count.
+
+Compatibility: both results must have the same workload name, the same agent
+(or both be deterministic workload results), and the same result kind — a
+single observation is never compared with a repeated-trial median. Modes may
+differ; that is the usual purpose of a comparison. Repeated results may have
+different trial counts; each side keeps its own trials and medians, and trial
+counts are displayed. Supported inputs are single results with schema versions
+2–4 and repeated results with schema version 4. Incompatible or unsupported
+inputs fail with a non-zero exit and no stdout.
+
+Missing values are not zero. Each side of each metric carries a status:
+`measured`, `unavailable` (not recorded, for example no trials or no wall time
+in deterministic workload results), or `not_applicable` (AgentCap processing
+and show/raw recovery in `disabled` mode). The human view prints `n/a` and `-`
+respectively, and no delta is computed involving such a value.
+
+The comparison JSON has its own `schema_version` (currently 1), independent of
+the benchmark result schema:
+
+```json
+{
+  "schema_version": 1,
+  "kind": "repeated",
+  "baseline":  {"schema_version": 4, "workload": "go-bugfix", "agent": "codex", "mode": "disabled", "trial_count": 5, "requested_trial_count": 5, "run_status": "completed"},
+  "candidate": {"schema_version": 4, "workload": "go-bugfix", "agent": "codex", "mode": "integrated", "trial_count": 5, "requested_trial_count": 5, "run_status": "completed"},
+  "outcomes": [
+    {"name": "task_success", "baseline": {"count": 5, "total": 5}, "candidate": {"count": 4, "total": 5}, "baseline_status": "measured", "candidate_status": "measured"}
+  ],
+  "metrics": [
+    {"name": "median_total_visible_bytes", "unit": "bytes", "baseline": 412000, "candidate": 91000, "baseline_status": "measured", "candidate_status": "measured", "delta": -321000, "relative_delta": -0.7791}
+  ]
+}
+```
+
+The command deliberately produces no composite score, winner, or pass/fail
+status, and its exit code does not depend on metric changes. Regression policy
+is a separate later phase.

@@ -123,6 +123,21 @@ Supported modes are `disabled`, `stateless`, `stateful`, and `integrated`. See
 [benchmarks/README.md](benchmarks/README.md) for their exact semantics and the
 measurement boundary.
 
+### Comparing benchmark results
+
+```bash
+acap bench agent ... --mode disabled --repeat 5 --json > disabled.json
+acap bench agent ... --mode integrated --repeat 5 --json > integrated.json
+acap bench compare disabled.json integrated.json
+acap bench compare --json disabled.json integrated.json
+```
+
+The first file is the baseline and the second the candidate; every delta is
+`candidate - baseline`. Comparison only reads recorded results — nothing is
+re-run. Task success, visible bytes, commands, wall time, show/raw recovery,
+and AgentCap processing are shown independently, with no overall score or
+winner.
+
 ## Debug
 
 ```bash

@@ -366,3 +366,97 @@ func TestBenchSessionCommandExecutesOnce(t *testing.T) {
 		t.Fatalf("counter=%q err=%v", data, err)
 	}
 }
+
+func writeRepeatedResult(t *testing.T, path, workloadName, mode string, trials, success int, visible int64) {
+	t.Helper()
+	processing := `0`
+	if mode != "disabled" {
+		processing = `12800000`
+	}
+	data := fmt.Sprintf(`{"schema_version":4,"workload":%q,"agent":"codex","mode":%q,
+		"requested_trial_count":%d,"trial_count":%d,"success_count":%d,"task_failure_count":%d,
+		"timeout_count":0,"agent_error_count":0,"canceled_count":0,"run_status":"completed",
+		"aggregate":{"median_total_visible_bytes":%d,"median_command_count":31,"median_wall_time_ns":84200000000,
+		"median_processing_ns":%s,"trials_with_show":1,"trials_with_raw_retrieval":0,"total_show_count":1,"total_raw_retrieval_count":0},
+		"trials":[]}`, workloadName, mode, trials, trials, success, trials-success, visible, processing)
+	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestBenchCompareReadsResultsWithoutExecution(t *testing.T) {
+	root := t.TempDir()
+	baseline := filepath.Join(root, "baseline.json")
+	candidate := filepath.Join(root, "candidate.json")
+	writeRepeatedResult(t, baseline, "bugfix-001", "disabled", 5, 5, 412000)
+	writeRepeatedResult(t, candidate, "bugfix-001", "stateful", 10, 8, 91000)
+	before := map[string][]byte{}
+	for _, p := range []string{baseline, candidate} {
+		before[p], _ = os.ReadFile(p)
+	}
+
+	out, code := acap(t, root, "bench", "compare", "--json", baseline, candidate)
+	if code != 0 {
+		t.Fatalf("exit %d: %s", code, out)
+	}
+	var decoded struct {
+		SchemaVersion int `json:"schema_version"`
+		Candidate     struct {
+			TrialCount int `json:"trial_count"`
+		} `json:"candidate"`
+		Metrics []struct {
+			Name  string `json:"name"`
+			Delta *int64 `json:"delta"`
+		} `json:"metrics"`
+	}
+	if err := json.Unmarshal([]byte(out), &decoded); err != nil {
+		t.Fatalf("stdout is not clean JSON: %v\n%s", err, out)
+	}
+	if decoded.SchemaVersion != 1 || decoded.Candidate.TrialCount != 10 || decoded.Metrics[0].Delta == nil || *decoded.Metrics[0].Delta != -321000 {
+		t.Fatalf("decoded = %+v", decoded)
+	}
+
+	out, code = acap(t, root, "bench", "compare", baseline, candidate)
+	if code != 0 {
+		t.Fatalf("exit %d: %s", code, out)
+	}
+	for _, want := range []string{"Benchmark comparison", "Task success", "5/5", "8/10", "Median visible bytes", "Show used", "AgentCap processing"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in:\n%s", want, out)
+		}
+	}
+
+	// Comparison is read-only: inputs are untouched and no store is created.
+	entries, _ := os.ReadDir(root)
+	if len(entries) != 2 {
+		t.Fatalf("compare created files: %v", entries)
+	}
+	for p, data := range before {
+		if now, _ := os.ReadFile(p); string(now) != string(data) {
+			t.Fatalf("%s was modified", p)
+		}
+	}
+}
+
+func TestBenchCompareRejectsIncompatibleAndInvalidInputs(t *testing.T) {
+	root := t.TempDir()
+	baseline := filepath.Join(root, "baseline.json")
+	other := filepath.Join(root, "other.json")
+	invalid := filepath.Join(root, "invalid.json")
+	writeRepeatedResult(t, baseline, "bugfix-001", "disabled", 5, 5, 1)
+	writeRepeatedResult(t, other, "bugfix-002", "stateful", 5, 5, 1)
+	if err := os.WriteFile(invalid, []byte("{"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{
+		{baseline, other},
+		{baseline, invalid},
+		{baseline, filepath.Join(root, "missing.json")},
+		{baseline},
+	} {
+		out, code := acap(t, root, append([]string{"bench", "compare", "--json"}, args...)...)
+		if code == 0 || out != "" {
+			t.Errorf("%v: exit %d, stdout %q", args, code, out)
+		}
+	}
+}

@@ -14,6 +14,7 @@ import (
 
 	"github.com/taqu/agentcap/internal/agentbench"
 	"github.com/taqu/agentcap/internal/bench"
+	"github.com/taqu/agentcap/internal/benchcompare"
 	"github.com/taqu/agentcap/internal/buildparse"
 	"github.com/taqu/agentcap/internal/delta"
 	"github.com/taqu/agentcap/internal/exec"
@@ -45,6 +46,7 @@ Usage:
   acap bench session <start|show>
   acap bench run [--json] [--verbose] [--keep-workspace] <workload.yaml>
   acap bench agent --workload <workload.yaml> --agent codex --mode <mode>
+  acap bench compare [--json] <baseline.json> <candidate.json>
   acap session <start|info|list|history>
   acap history
   acap exec [--protocol=json]
@@ -66,6 +68,7 @@ Examples:
   acap bench session start
   acap bench run benchmarks/workloads/git/repeated-diff.yaml
   acap bench agent --workload benchmarks/workloads/agent/go-bugfix.yaml --agent codex --mode integrated
+  acap bench compare disabled.json integrated.json
   acap session start
   acap session info
   acap session list
@@ -95,6 +98,7 @@ Subcommands:
   session   Start or inspect a persistent stateful benchmark session.
   run       Run a reproducible workload in an isolated temporary workspace.
   agent     Run one real coding-agent task trial.
+  compare   Compare two previously recorded benchmark results.
 
 Run "acap bench <subcommand> --help" for details.
 `
@@ -170,6 +174,26 @@ Flags:
   --json             Print the versioned result as JSON only.
   --verbose          Send captured agent logs to stderr.
   --keep-workspace   Retain and print the temporary workspace path.
+`
+
+const benchCompareUsage = `Usage: acap bench compare [--json] <baseline.json> <candidate.json>
+
+Compares two results previously written by "acap bench run --json" or
+"acap bench agent --json". Nothing is executed: no workload, agent, verifier,
+or AgentCap processing runs, and the input files are not modified.
+
+The first file is the baseline and the second is the candidate. Every delta is
+candidate - baseline; relative deltas divide by the baseline and are omitted
+when the baseline is zero. Task success, visible bytes, commands, wall time,
+show/raw recovery, and AgentCap processing are reported independently. No
+overall score or winner is computed.
+
+Both results must have the same workload, the same agent, and the same result
+kind (single trial or repeated trials). Modes may differ. Repeated results may
+have different trial counts; each side keeps its own trials and B7 medians.
+
+Flags:
+  --json  Print the versioned comparison as JSON only.
 `
 
 var debugMode = os.Getenv("ACAP_DEBUG") == "1"
@@ -941,6 +965,8 @@ func benchCmd(args []string) {
 		benchRunCmd(args[1:])
 	case "agent":
 		benchAgentCmd(args[1:])
+	case "compare":
+		benchCompareCmd(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "acap: bench: unknown subcommand %q\n\n%s", args[0], benchUsage)
 		os.Exit(1)
@@ -1036,6 +1062,54 @@ func benchAgentCmd(args []string) {
 	}
 	if runErr != nil {
 		fmt.Fprintf(os.Stderr, "acap: bench agent: %v\n", runErr)
+		os.Exit(1)
+	}
+}
+
+func benchCompareCmd(args []string) {
+	var jsonOutput bool
+	var paths []string
+	for _, arg := range args {
+		switch arg {
+		case "--json":
+			jsonOutput = true
+		case "--help", "-h":
+			fmt.Fprint(os.Stdout, benchCompareUsage)
+			os.Exit(0)
+		default:
+			if strings.HasPrefix(arg, "-") {
+				fmt.Fprintf(os.Stderr, "acap: bench compare: unknown flag %q\n\n%s", arg, benchCompareUsage)
+				os.Exit(1)
+			}
+			paths = append(paths, arg)
+		}
+	}
+	if len(paths) != 2 {
+		fmt.Fprint(os.Stderr, benchCompareUsage)
+		os.Exit(1)
+	}
+	baseline, err := workload.LoadResult(paths[0])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "acap: bench compare: baseline: %v\n", err)
+		os.Exit(1)
+	}
+	candidate, err := workload.LoadResult(paths[1])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "acap: bench compare: candidate: %v\n", err)
+		os.Exit(1)
+	}
+	comparison, err := benchcompare.Compare(baseline, candidate)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "acap: bench compare: %v\n", err)
+		os.Exit(1)
+	}
+	if jsonOutput {
+		err = benchcompare.WriteJSON(os.Stdout, comparison)
+	} else {
+		err = benchcompare.WriteHuman(os.Stdout, comparison)
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "acap: bench compare: %v\n", err)
 		os.Exit(1)
 	}
 }
