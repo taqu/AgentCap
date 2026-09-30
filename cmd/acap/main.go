@@ -151,8 +151,8 @@ Flags:
 
 const benchAgentUsage = `Usage: acap bench agent --workload <workload.yaml> --agent codex --mode <mode> [flags]
 
-Runs one coding-agent trial in a fresh fixture workspace, then executes the
-workload verifier outside the agent-visible measurement boundary.
+Runs one or more independent coding-agent trials in fresh fixture workspaces,
+then executes each verifier outside the agent-visible measurement boundary.
 
 Modes (required):
   disabled    No AgentCap hook; measure normal command output from agent events.
@@ -166,6 +166,7 @@ Flags:
   --mode <mode>      Comparison mode (required).
   --model <model>    Optional agent model override.
   --timeout <dur>    Agent timeout override (for example 10m).
+  --repeat <N>       Run N sequential independent trials (default 1).
   --json             Print the versioned result as JSON only.
   --verbose          Send captured agent logs to stderr.
   --keep-workspace   Retain and print the temporary workspace path.
@@ -954,6 +955,7 @@ func benchAgentCmd(args []string) {
 	modeFlag := fs.String("mode", "", "AgentCap mode")
 	modelFlag := fs.String("model", "", "agent model override")
 	timeoutFlag := fs.Duration("timeout", 0, "agent timeout override")
+	repeatFlag := fs.Int("repeat", 1, "number of independent trials")
 	jsonFlag := fs.Bool("json", false, "print JSON result")
 	verboseFlag := fs.Bool("verbose", false, "print captured agent logs to stderr")
 	keepFlag := fs.Bool("keep-workspace", false, "retain temporary workspace")
@@ -963,6 +965,10 @@ func benchAgentCmd(args []string) {
 	}
 	if err := fs.Parse(args); err != nil {
 		fmt.Fprintf(os.Stderr, "acap: bench agent: %v\n\n%s", err, benchAgentUsage)
+		os.Exit(1)
+	}
+	if *repeatFlag < 1 {
+		fmt.Fprintf(os.Stderr, "acap: bench agent: repeat must be at least 1 (got %d)\n", *repeatFlag)
 		os.Exit(1)
 	}
 	if *workloadFlag == "" || *agentFlag == "" || *modeFlag == "" || len(fs.Args()) != 0 {
@@ -987,38 +993,58 @@ func benchAgentCmd(args []string) {
 	cwd, _ := os.Getwd()
 	executable, _ := os.Executable()
 	hookCommand := strconv.Quote(executable) + " hook codex"
-	trial, err := agentbench.Run(context.Background(), definition, agentbench.Options{
+	run, runErr := agentbench.RunRepeated(context.Background(), definition, agentbench.Options{
 		Adapter: adapter, Mode: mode, StoreRoot: project.FindRoot(cwd),
 		Timeout: *timeoutFlag, KeepWorkspace: *keepFlag,
 		HookCommand: hookCommand, Model: *modelFlag,
-	})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "acap: bench agent: %v\n", err)
-		if trial != nil && trial.RetainedWorkspace != "" {
-			fmt.Fprintf(os.Stderr, "workspace retained: %s\n", trial.RetainedWorkspace)
-		}
-		os.Exit(1)
-	}
+	}, *repeatFlag)
 	if *verboseFlag {
-		if len(trial.AgentStdout) != 0 {
-			fmt.Fprintf(os.Stderr, "agent stdout:\n%s\n", trial.AgentStdout)
-		}
-		if len(trial.AgentStderr) != 0 {
-			fmt.Fprintf(os.Stderr, "agent stderr:\n%s\n", trial.AgentStderr)
+		for i, trial := range runTrials(run) {
+			if len(trial.AgentStdout) != 0 {
+				fmt.Fprintf(os.Stderr, "trial %d agent stdout:\n%s\n", i+1, trial.AgentStdout)
+			}
+			if len(trial.AgentStderr) != 0 {
+				fmt.Fprintf(os.Stderr, "trial %d agent stderr:\n%s\n", i+1, trial.AgentStderr)
+			}
 		}
 	}
-	if *jsonFlag {
-		err = workload.WriteJSON(os.Stdout, trial.Benchmark)
-	} else {
-		err = workload.WriteHuman(os.Stdout, trial.Benchmark, false)
+	var outputErr error
+	if run != nil && run.Benchmark != nil {
+		if *repeatFlag == 1 && len(run.Trials) == 1 && run.Trials[0].Benchmark != nil {
+			if *jsonFlag {
+				outputErr = workload.WriteJSON(os.Stdout, run.Trials[0].Benchmark)
+			} else {
+				outputErr = workload.WriteHuman(os.Stdout, run.Trials[0].Benchmark, false)
+			}
+		} else if *jsonFlag {
+			outputErr = workload.WriteRepeatedJSON(os.Stdout, run.Benchmark)
+		} else {
+			outputErr = workload.WriteRepeatedHuman(os.Stdout, run.Benchmark)
+		}
 	}
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "acap: bench agent: %v\n", err)
+	if outputErr != nil {
+		fmt.Fprintf(os.Stderr, "acap: bench agent: %v\n", outputErr)
 		os.Exit(1)
 	}
-	if trial.RetainedWorkspace != "" {
-		fmt.Fprintf(os.Stderr, "workspace retained: %s\n", trial.RetainedWorkspace)
+	for i, trial := range runTrials(run) {
+		if trial.RetainedWorkspace != "" {
+			fmt.Fprintf(os.Stderr, "trial %d workspace retained: %s\n", i+1, trial.RetainedWorkspace)
+		}
+		if trial.RetainedStateRoot != "" {
+			fmt.Fprintf(os.Stderr, "trial %d state retained: %s\n", i+1, trial.RetainedStateRoot)
+		}
 	}
+	if runErr != nil {
+		fmt.Fprintf(os.Stderr, "acap: bench agent: %v\n", runErr)
+		os.Exit(1)
+	}
+}
+
+func runTrials(run *agentbench.RepeatedRun) []*agentbench.Trial {
+	if run == nil {
+		return nil
+	}
+	return run.Trials
 }
 
 func benchRunCmd(args []string) {
@@ -1501,6 +1527,9 @@ func hookCodexCmd() {
 func benchmarkSessionID(agentSessionID string) string {
 	if os.Getenv(protocol.EnvBenchmarkMode) == "stateless" {
 		return ""
+	}
+	if scope := os.Getenv(protocol.EnvBenchmarkSessionScope); scope != "" {
+		return common.MapAgentSession(scope + ":" + agentSessionID)
 	}
 	return common.MapAgentSession(agentSessionID)
 }

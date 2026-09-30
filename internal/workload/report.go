@@ -74,6 +74,67 @@ func WriteJSON(w io.Writer, result *BenchmarkResult) error {
 	return enc.Encode(result)
 }
 
+// WriteRepeatedJSON writes the stable repeated-benchmark schema as one JSON
+// object, including both the canonical aggregate and every individual trial.
+func WriteRepeatedJSON(w io.Writer, result *RepeatedBenchmarkResult) error {
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(result)
+}
+
+// WriteRepeatedHuman renders the aggregate and the individual observations
+// from the same canonical repeated result used by JSON output.
+func WriteRepeatedHuman(w io.Writer, result *RepeatedBenchmarkResult) error {
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "Benchmark Workload: %s\n\n", result.Workload)
+	fmt.Fprintf(&sb, "agent: %s\nmode: %s\ntrials: %d/%d\nrun status: %s\n", result.Agent, result.Mode, result.TrialCount, result.RequestedTrialCount, result.RunStatus)
+	fmt.Fprintf(&sb, "\ntask:\n  success:               %d/%d\n  verification failures: %d\n  timeouts:               %d\n  agent errors:           %d\n  canceled:               %d\n", result.SuccessCount, result.TrialCount, result.TaskFailureCount, result.TimeoutCount, result.AgentErrorCount, result.CanceledCount)
+	a := result.Aggregate
+	fmt.Fprintf(&sb, "\nworkflow median:\n  visible bytes:         %s\n  commands:              %s\n  wall time:             %s\n", medianBytes(a.MedianTotalVisibleBytes), medianInteger(a.MedianCommandCount), medianDuration(a.MedianWallTimeNS))
+	fmt.Fprintf(&sb, "\nrecovery:\n  show used:             %d/%d trials\n  raw used:              %d/%d trials\n  show calls:            %d total\n  raw retrievals:        %d total\n", a.TrialsWithShow, result.TrialCount, a.TrialsWithRawRetrieval, result.TrialCount, a.TotalShowCount, a.TotalRawRetrievalCount)
+	fmt.Fprintf(&sb, "\nAgentCap:\n  median processing:     %s\n", medianDuration(a.MedianProcessingNS))
+	sb.WriteString("\nindividual trials:\n  trial  result       visible B  commands  wall\n")
+	for _, trial := range result.Trials {
+		if trial == nil {
+			continue
+		}
+		fmt.Fprintf(&sb, "  %-6d %-12s %-10d %-9d %s\n", trial.Trial, trialOutcome(trial), trial.TotalVisibleBytes, trial.Commands, duration(time.Duration(trial.WallTimeNS)))
+	}
+	_, err := io.WriteString(w, sb.String())
+	return err
+}
+
+func trialOutcome(result *BenchmarkResult) string {
+	if result.ExecutionStatus == "timeout" || result.ExecutionStatus == "canceled" || result.ExecutionStatus == "agent_error" {
+		return result.ExecutionStatus
+	}
+	if result.TaskSuccess != nil && *result.TaskSuccess {
+		return "success"
+	}
+	return "task_failure"
+}
+
+func medianBytes(value *int64) string {
+	if value == nil {
+		return "n/a"
+	}
+	return fmt.Sprintf("%d B", *value)
+}
+
+func medianInteger(value *int64) string {
+	if value == nil {
+		return "n/a"
+	}
+	return fmt.Sprintf("%d", *value)
+}
+
+func medianDuration(value *int64) string {
+	if value == nil {
+		return "n/a"
+	}
+	return duration(time.Duration(*value))
+}
+
 // WriteText preserves the B3 programmatic API while routing it through the
 // canonical B4 result model.
 func WriteText(w io.Writer, run *Result, verbose bool) error {

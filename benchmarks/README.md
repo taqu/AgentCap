@@ -106,12 +106,12 @@ They use Git and the Go standard toolchain only and require no network access.
 ## Stable result JSON
 
 `--json` writes one JSON object and no human headers or command output to
-stdout. Schema version 3 retains progressive-disclosure recovery measurements
+stdout. Schema version 4 retains progressive-disclosure recovery measurements
 and adds optional coding-agent trial metadata:
 
 ```json
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "workload": "recovery/show-and-raw",
   "commands": 1,
   "raw_bytes": 221,
@@ -160,11 +160,13 @@ verify:
       expect: {exit: 0}
 ```
 
-Run one trial with an explicit agent and mode:
+Run one trial with an explicit agent and mode, or repeat the same fixed
+configuration sequentially:
 
 ```text
 acap bench agent --workload benchmarks/workloads/agent/go-bugfix.yaml --agent codex --mode integrated
 acap bench agent --workload benchmarks/workloads/agent/go-bugfix.yaml --agent codex --mode disabled --json
+acap bench agent --workload benchmarks/workloads/agent/go-bugfix.yaml --agent codex --mode integrated --repeat 5 --json
 ```
 
 The initial real adapter is Codex CLI. It uses non-interactive `codex exec`, an
@@ -198,8 +200,32 @@ with `task_success: false`; failure to start or configure the agent is an
 infrastructure error. Timeout and non-zero agent exit are recorded as
 `execution_status` values rather than fabricated successful results.
 
-Schema version 3 agent results additionally expose `agent`, `mode`,
+Schema version 4 agent results expose `agent`, `mode`,
 `task_success`, `execution_status`, `agent_exit_code`, and `wall_time_ns`.
 Complete agent wall time is separate from `processing_ns`, which records only
-AgentCap command/retrieval processing. Each invocation is one trial; repetition,
-statistics, comparisons, and regression policy remain out of scope.
+AgentCap command/retrieval processing.
+
+### Repeated coding-agent trials
+
+`--repeat N` requires `N >= 1` and runs the existing single-trial path N times
+sequentially. Every trial receives a fresh fixture workspace, isolated AgentCap
+store, and distinct stateful session scope. Task text, verifier, mode, timeout,
+model selection, and integration instructions remain constant. `--repeat 1` is
+the default and retains the compact single-trial B6 output.
+
+For repeated runs, schema version 4 emits group metadata, requested and
+completed trial counts, completion status, every indexed trial, and one
+canonical `aggregate`. The aggregate reports objective success/failure counts,
+timeout and agent-error counts, median total visible bytes, commands, complete
+agent wall time, AgentCap processing time, and show/raw usage. Integer medians
+use the midpoint of the two central values and round down for a half-unit.
+
+All valid executed trials participate in workflow-cost medians, including task
+failures, timeouts, and non-zero agent exits. They are never replaced by zero or
+discarded merely because verification failed. Infrastructure failure stops the
+remaining repetitions and marks the partial group `incomplete`; requested and
+completed counts make missing trials explicit. Individual observations remain
+in `trials`, so the median never hides outliers.
+
+B7 does not compare modes, rank configurations, calculate significance, or
+apply CI thresholds. Those remain separate later phases.

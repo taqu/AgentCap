@@ -256,7 +256,7 @@ steps:
 	if err := json.Unmarshal([]byte(out), &result); err != nil {
 		t.Fatalf("stdout is not JSON-only: %v\n%s", err, out)
 	}
-	if result.SchemaVersion != 3 || result.Workload != "cli/json" || result.Commands != 1 || result.RawBytes == 0 || result.ProcessingNS <= 0 || result.InitialVisibleBytes != result.StatefulBytes || result.ShowCount != 2 || result.RawRetrievalCount != 1 || result.ShowBytes <= 0 || result.RawRetrievalBytes <= 0 || result.TotalVisibleBytes != result.InitialVisibleBytes+result.ShowBytes+result.RawRetrievalBytes {
+	if result.SchemaVersion != 4 || result.Workload != "cli/json" || result.Commands != 1 || result.RawBytes == 0 || result.ProcessingNS <= 0 || result.InitialVisibleBytes != result.StatefulBytes || result.ShowCount != 2 || result.RawRetrievalCount != 1 || result.ShowBytes <= 0 || result.RawRetrievalBytes <= 0 || result.TotalVisibleBytes != result.InitialVisibleBytes+result.ShowBytes+result.RawRetrievalBytes {
 		t.Fatalf("result = %+v", result)
 	}
 	data, err := os.ReadFile(counter)
@@ -273,6 +273,24 @@ func TestBenchmarkSessionIDModes(t *testing.T) {
 	t.Setenv("ACAP_BENCH_MODE", "stateful")
 	if got := benchmarkSessionID("agent-session"); got == "" {
 		t.Fatal("stateful mode did not map the agent session")
+	}
+	withoutScope := benchmarkSessionID("agent-session")
+	t.Setenv("ACAP_BENCH_SESSION_SCOPE", "trial-one")
+	first := benchmarkSessionID("agent-session")
+	t.Setenv("ACAP_BENCH_SESSION_SCOPE", "trial-two")
+	second := benchmarkSessionID("agent-session")
+	if first == withoutScope || second == withoutScope || first == second {
+		t.Fatalf("trial scopes not isolated: unscoped=%q first=%q second=%q", withoutScope, first, second)
+	}
+}
+
+func TestBenchAgentRejectsInvalidRepeat(t *testing.T) {
+	root := t.TempDir()
+	for _, repeat := range []string{"0", "-1"} {
+		_, code := acap(t, root, "bench", "agent", "--workload", "unused.yaml", "--agent", "codex", "--mode", "disabled", "--repeat", repeat)
+		if code == 0 {
+			t.Fatalf("repeat %s accepted", repeat)
+		}
 	}
 }
 

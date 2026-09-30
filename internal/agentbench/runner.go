@@ -5,10 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	acapexec "github.com/taqu/agentcap/internal/exec"
-	"github.com/taqu/agentcap/internal/project"
+	"github.com/taqu/agentcap/internal/session"
 	"github.com/taqu/agentcap/internal/stats"
 	"github.com/taqu/agentcap/internal/store"
 	"github.com/taqu/agentcap/internal/workload"
@@ -30,6 +31,7 @@ type Trial struct {
 	AgentStdout       []byte
 	AgentStderr       []byte
 	RetainedWorkspace string
+	RetainedStateRoot string
 }
 
 // Run executes one agent trial in a fresh fixture workspace and verifies it
@@ -59,7 +61,17 @@ func Run(ctx context.Context, definition *workload.Definition, opts Options) (tr
 		}
 	}()
 
-	root := project.FindRoot(opts.StoreRoot)
+	// StoreRoot is explicit benchmark state. Do not apply normal project-root
+	// discovery here because ACAP_ROOT from the caller could defeat per-trial
+	// isolation established by RunRepeated.
+	root := filepath.Clean(opts.StoreRoot)
+	sessionID, err := session.GenerateID()
+	if err != nil {
+		return trial, fmt.Errorf("create benchmark session scope: %w", err)
+	}
+	// Including the per-trial store root makes repeated-run scopes distinct even
+	// in the extraordinarily unlikely event that two random session IDs collide.
+	sessionScope := root + ":" + sessionID
 	before, err := loadStats(root)
 	if err != nil {
 		return trial, err
@@ -76,6 +88,7 @@ func Run(ctx context.Context, definition *workload.Definition, opts Options) (tr
 	agentResult, runErr := opts.Adapter.Run(agentCtx, AgentRunRequest{
 		Workspace: workspace, Task: definition.Task, Mode: opts.Mode,
 		StoreRoot: root, HookCommand: opts.HookCommand, Model: opts.Model,
+		SessionScope: sessionScope,
 	})
 	wall := time.Since(started)
 	cancel()

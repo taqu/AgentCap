@@ -13,6 +13,9 @@ const EnvDepth = "ACAP_INTERCEPT_DEPTH"
 // EnvBenchmarkMode configures session behavior for coding-agent benchmarks.
 const EnvBenchmarkMode = "ACAP_BENCH_MODE"
 
+// EnvBenchmarkSessionScope isolates stateful history between benchmark trials.
+const EnvBenchmarkSessionScope = "ACAP_BENCH_SESSION_SCOPE"
+
 // ToolRequest is the JSON payload sent to "acap exec --protocol=json" on stdin.
 type ToolRequest struct {
 	Protocol   int      `json:"protocol"`

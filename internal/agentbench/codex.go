@@ -87,11 +87,12 @@ func (a *CodexAdapter) Run(ctx context.Context, req AgentRunRequest) (*AgentRunR
 
 func benchmarkEnv(env []string, req AgentRunRequest) []string {
 	values := map[string]string{
-		"ACAP_ROOT":               req.StoreRoot,
-		protocol.EnvBenchmarkMode: string(req.Mode),
-		protocol.EnvBypass:        "",
-		protocol.EnvDepth:         "",
-		"ACAP_SESSION_ID":         "",
+		"ACAP_ROOT":                       req.StoreRoot,
+		protocol.EnvBenchmarkMode:         string(req.Mode),
+		protocol.EnvBenchmarkSessionScope: req.SessionScope,
+		protocol.EnvBypass:                "",
+		protocol.EnvDepth:                 "",
+		"ACAP_SESSION_ID":                 "",
 	}
 	out := make([]string, 0, len(env)+len(values))
 	for _, item := range env {

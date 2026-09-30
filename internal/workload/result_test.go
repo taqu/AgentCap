@@ -43,7 +43,7 @@ func TestBenchmarkResultSchemaAndJSONFields(t *testing.T) {
 	if result.SchemaVersion != BenchmarkResultSchemaVersion {
 		t.Fatalf("schema version = %d, constant = %d", result.SchemaVersion, BenchmarkResultSchemaVersion)
 	}
-	if BenchmarkResultSchemaVersion != 3 {
+	if BenchmarkResultSchemaVersion != 4 {
 		t.Fatalf("schema version constant = %d", BenchmarkResultSchemaVersion)
 	}
 	var buf bytes.Buffer
@@ -57,7 +57,7 @@ func TestBenchmarkResultSchemaAndJSONFields(t *testing.T) {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 	want := map[string]string{
-		"schema_version":        "3",
+		"schema_version":        "4",
 		"commands":              "3",
 		"raw_bytes":             "1000",
 		"stateless_bytes":       "400",
@@ -128,7 +128,7 @@ func TestAgentBenchmarkResultFormats(t *testing.T) {
 	if err := json.Unmarshal(machine.Bytes(), &decoded); err != nil {
 		t.Fatal(err)
 	}
-	if decoded["schema_version"] != float64(3) || decoded["agent"] != "codex" || decoded["mode"] != "integrated" || decoded["task_success"] != true || decoded["execution_status"] != "completed" || decoded["wall_time_ns"] != float64(3_000_000_000) {
+	if decoded["schema_version"] != float64(4) || decoded["agent"] != "codex" || decoded["mode"] != "integrated" || decoded["task_success"] != true || decoded["execution_status"] != "completed" || decoded["wall_time_ns"] != float64(3_000_000_000) {
 		t.Fatalf("agent JSON = %#v", decoded)
 	}
 	if err := WriteHuman(&human, result, false); err != nil {

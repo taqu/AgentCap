@@ -12,12 +12,13 @@ type Adapter interface {
 }
 
 type AgentRunRequest struct {
-	Workspace   string
-	Task        string
-	Mode        Mode
-	StoreRoot   string
-	HookCommand string
-	Model       string
+	Workspace    string
+	Task         string
+	Mode         Mode
+	StoreRoot    string
+	HookCommand  string
+	Model        string
+	SessionScope string
 }
 
 type AgentRunResult struct {
