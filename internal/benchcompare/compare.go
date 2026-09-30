@@ -15,7 +15,10 @@ import (
 
 // ComparisonSchemaVersion identifies the JSON comparison contract. It is
 // independent of workload.BenchmarkResultSchemaVersion.
-const ComparisonSchemaVersion = 1
+//
+// Version 2 added raw_bytes, stateless_bytes, and stateful_bytes to single
+// result comparisons.
+const ComparisonSchemaVersion = 2
 
 // modeDisabled is the coding-agent mode without any AgentCap hook, in which
 // AgentCap processing and show/raw recovery cannot occur.
@@ -214,6 +217,9 @@ func compareSingle(c *Comparison, b, k *workload.BenchmarkResult) {
 		outcome("task_success", taskSuccess(b), taskSuccess(k)),
 	}
 	c.Metrics = []NumericMetric{
+		numeric("raw_bytes", UnitBytes, measured(b.RawBytes), measured(k.RawBytes), true),
+		numeric("stateless_bytes", UnitBytes, measured(b.StatelessBytes), measured(k.StatelessBytes), true),
+		numeric("stateful_bytes", UnitBytes, measured(b.StatefulBytes), measured(k.StatefulBytes), true),
 		numeric("total_visible_bytes", UnitBytes, measured(b.TotalVisibleBytes), measured(k.TotalVisibleBytes), true),
 		numeric("command_count", UnitCount, measured(int64(b.Commands)), measured(int64(k.Commands)), true),
 		numeric("wall_time_ns", UnitNanoseconds, wallTime(b), wallTime(k), true),

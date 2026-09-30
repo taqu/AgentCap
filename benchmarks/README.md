@@ -254,6 +254,7 @@ Dimensions reported independently:
 |---|---|---|
 | task success | `success_count/trial_count` per side | `1/1` or `0/1` |
 | agent-visible bytes | `median_total_visible_bytes` | `total_visible_bytes` |
+| output sizes | — | `raw_bytes` (reference), `stateless_bytes`, `stateful_bytes` |
 | command count | `median_command_count` | `command_count` |
 | wall time | `median_wall_time_ns` | `wall_time_ns` (agent results only) |
 | show/raw recovery | `trials_with_show`, `trials_with_raw_retrieval`, `total_show_count`, `total_raw_retrieval_count` | `show_count`, `raw_retrieval_count`, `show_bytes`, `raw_retrieval_bytes` |
@@ -281,12 +282,13 @@ in deterministic workload results), or `not_applicable` (AgentCap processing
 and show/raw recovery in `disabled` mode). The human view prints `n/a` and `-`
 respectively, and no delta is computed involving such a value.
 
-The comparison JSON has its own `schema_version` (currently 1), independent of
-the benchmark result schema:
+The comparison JSON has its own `schema_version` (currently 2; version 2 added
+the single-result output-size metrics), independent of the benchmark result
+schema:
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "kind": "repeated",
   "baseline":  {"schema_version": 4, "workload": "go-bugfix", "agent": "codex", "mode": "disabled", "trial_count": 5, "requested_trial_count": 5, "run_status": "completed"},
   "candidate": {"schema_version": 4, "workload": "go-bugfix", "agent": "codex", "mode": "integrated", "trial_count": 5, "requested_trial_count": 5, "run_status": "completed"},
@@ -301,4 +303,148 @@ the benchmark result schema:
 
 The command deliberately produces no composite score, winner, or pass/fail
 status, and its exit code does not depend on metric changes. Regression policy
-is a separate later phase.
+is applied only by `acap bench check` (below).
+
+## Regression checks
+
+`acap bench compare` is **descriptive**: it reports what changed and always
+exits 0 for a valid comparison. `acap bench check` is **policy-driven**: it
+applies explicit thresholds to the same comparison and sets the exit status.
+
+```text
+acap bench suite --out <dir> benchmarks/regression.yaml
+acap bench check --baseline <path> --candidate <path> --policy benchmarks/regression.yaml [--json]
+```
+
+### The deterministic suite
+
+[`regression.yaml`](regression.yaml) is the single source of both the CI
+workload list and the thresholds. It selects small, fast, deterministic
+workloads covering git diff reduction, repeated/unchanged/delta stateful
+output, build and test error transitions, and show/raw recovery.
+`acap bench suite` runs each listed workload exactly as `acap bench run` does
+(fresh temporary workspace and benchmark session) and writes one result per
+workload, named `<workload with / replaced by _>.json`, into an output
+directory that must be new or empty. Coding-agent workloads are rejected.
+
+### Policy
+
+```yaml
+version: 1
+workloads:
+  - workloads/git/repeated-diff.yaml   # relative to this file
+metrics:
+  stateful_bytes:
+    max_relative_increase: 0.10        # fraction: 0.10 = +10%
+    max_absolute_increase: 32          # in the metric's unit (bytes, ns, count)
+```
+
+- Every rule applies to every suite workload separately. Workloads are never
+  summed or averaged, so one workload's improvement cannot hide another's
+  regression.
+- The increase is the B8 `delta = candidate - baseline`; the relative change is
+  the B8 `relative_delta`. The checker performs no delta arithmetic of its own.
+- A decrease or no change always passes. An increase **equal** to a limit
+  passes.
+- With both limits, a check is a regression only when the increase exceeds
+  both — the absolute limit is a noise floor for small values (10 B → 20 B is
+  +100% but only +10 B).
+- A zero baseline makes the relative change undefined: the absolute limit
+  decides if configured, otherwise the check is `not_evaluable`.
+- Policy metric names are the B8 comparison metric names: `stateless_bytes`,
+  `stateful_bytes`, `total_visible_bytes`, `show_bytes`,
+  `raw_retrieval_bytes`, `command_count`, `show_count`, `raw_retrieval_count`,
+  `processing_ns`, `wall_time_ns`, and the repeated-result
+  `median_*`/`total_*` metrics. Unknown names, unknown keys, duplicate
+  metrics, negative or non-numeric limits, and rules without a limit are
+  rejected, so a typo cannot silently drop a check.
+- `raw_bytes` cannot be gated. Raw output measures the fixture and tools, not
+  AgentCap; a raw change is reported as a reference note only.
+- Deterministic workload results do not record wall time, so the checked-in
+  policy gates AgentCap `processing_ns` with a wide tolerance instead of
+  wall time. Byte metrics are exact and use tight limits.
+
+Thresholds are configuration: the tool never adjusts them and never replaces a
+baseline.
+
+### Outcomes and exit status
+
+Each check is `pass`, `regression`, or `not_evaluable`; each workload is
+`evaluated`, `missing` (no baseline or candidate result), or `incompatible`.
+The evaluation **fails** when any check regresses or is not evaluable, when a
+suite workload is missing or incompatible, or when nothing was evaluated.
+Missing measurements are never treated as zero.
+
+| exit | meaning | JSON `status` |
+|---|---|---|
+| 0 | every check passed | `passed` |
+| 1 | regression or not-evaluable check | `failed` |
+| 2 | evaluation could not be completed (invalid policy, missing or invalid result files) | `error` |
+
+The evaluation JSON has its own `schema_version` (currently 1). Each check
+embeds the B8 comparison metric plus its limits and status:
+
+```json
+{
+  "schema_version": 1,
+  "status": "failed",
+  "passed": false,
+  "summary": {"workloads": 4, "failed_workloads": 1, "checks": 20, "passed": 19, "regressions": 1, "not_evaluable": 0},
+  "workloads": [
+    {
+      "workload": "git/repeated-diff",
+      "status": "evaluated",
+      "raw_bytes": {"name": "raw_bytes", "unit": "bytes", "baseline": 716, "candidate": 716, "delta": 0, "relative_delta": 0, "baseline_status": "measured", "candidate_status": "measured"},
+      "checks": [
+        {"name": "stateful_bytes", "unit": "bytes", "baseline": 203, "candidate": 290, "baseline_status": "measured", "candidate_status": "measured",
+         "delta": 87, "relative_delta": 0.4286, "max_relative_increase": 0.1, "max_absolute_increase": 32, "status": "regression"}
+      ]
+    }
+  ]
+}
+```
+
+### CI
+
+[`.github/workflows/benchmark-regression.yml`](../.github/workflows/benchmark-regression.yml)
+runs on pull requests. It builds `acap` from the pull request's base revision
+(the baseline) and from the pull request (the candidate), runs
+`acap bench suite` with each binary against the **candidate's** suite file,
+workloads, and fixtures, and then runs `acap bench check`. Using the same
+inputs on both sides isolates AgentCap code changes from benchmark input
+changes, and running both on the same host keeps latency comparable. Each side
+uses its own `ACAP_ROOT` store. The baseline, candidate, and evaluation JSON
+are uploaded as the `benchmark-regression-results` artifact. The workflow
+contains no benchmark semantics of its own.
+
+If the base revision predates `acap bench suite`, the workflow emits a warning
+that the regression check was **not performed** rather than reporting a pass.
+
+### Reproducing a CI failure locally
+
+Download the artifact and rerun the same policy:
+
+```text
+acap bench check --baseline benchmark-results/baseline --candidate benchmark-results/candidate --policy benchmarks/regression.yaml
+```
+
+Or regenerate both sides:
+
+```text
+git worktree add ../acap-base main
+(cd ../acap-base && go build -o ../acap-base.exe ./cmd/acap)
+go build -o acap-candidate.exe ./cmd/acap
+ACAP_ROOT=$(mktemp -d) ../acap-base.exe bench suite --out results/baseline benchmarks/regression.yaml
+ACAP_ROOT=$(mktemp -d) ./acap-candidate.exe bench suite --out results/candidate benchmarks/regression.yaml
+./acap-candidate.exe bench check --baseline results/baseline --candidate results/candidate --policy benchmarks/regression.yaml
+```
+
+### Coding-agent benchmarks are not a CI gate
+
+`acap bench agent` (B6/B7) depends on external LLM providers, costs money,
+is rate-limited, and is nondeterministic, so it is intentionally excluded from
+routine CI. It remains the way to evaluate what the deterministic suite cannot:
+agent task success, real show/raw recovery behavior, and complete coding-agent
+efficiency. Run it manually (for example before a release or after a
+significant AgentCap change) with `--repeat`, and compare configurations with
+`acap bench compare`.

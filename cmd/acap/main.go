@@ -47,6 +47,8 @@ Usage:
   acap bench run [--json] [--verbose] [--keep-workspace] <workload.yaml>
   acap bench agent --workload <workload.yaml> --agent codex --mode <mode>
   acap bench compare [--json] <baseline.json> <candidate.json>
+  acap bench suite --out <dir> <regression.yaml>
+  acap bench check --baseline <path> --candidate <path> --policy <regression.yaml>
   acap session <start|info|list|history>
   acap history
   acap exec [--protocol=json]
@@ -69,6 +71,8 @@ Examples:
   acap bench run benchmarks/workloads/git/repeated-diff.yaml
   acap bench agent --workload benchmarks/workloads/agent/go-bugfix.yaml --agent codex --mode integrated
   acap bench compare disabled.json integrated.json
+  acap bench suite --out results/candidate benchmarks/regression.yaml
+  acap bench check --baseline results/baseline --candidate results/candidate --policy benchmarks/regression.yaml
   acap session start
   acap session info
   acap session list
@@ -99,6 +103,8 @@ Subcommands:
   run       Run a reproducible workload in an isolated temporary workspace.
   agent     Run one real coding-agent task trial.
   compare   Compare two previously recorded benchmark results.
+  suite     Run the deterministic regression suite and save its results.
+  check     Apply a regression policy to recorded results (CI gate).
 
 Run "acap bench <subcommand> --help" for details.
 `
@@ -227,6 +233,12 @@ func main() {
 		execCmd(args[1:])
 	case "hook":
 		hookCmd(args[1:])
+	case "claude-exec":
+		if len(args) != 2 {
+			fmt.Fprintln(os.Stderr, "acap: missing Claude execution payload")
+			os.Exit(2)
+		}
+		os.Exit(claude.ExecutePayload(context.Background(), args[1], os.Stdout, os.Stderr))
 	case "integrate":
 		integrateCmd(args[1:])
 	case "doctor":
@@ -967,6 +979,10 @@ func benchCmd(args []string) {
 		benchAgentCmd(args[1:])
 	case "compare":
 		benchCompareCmd(args[1:])
+	case "suite":
+		benchSuiteCmd(args[1:])
+	case "check":
+		benchCheckCmd(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "acap: bench: unknown subcommand %q\n\n%s", args[0], benchUsage)
 		os.Exit(1)
@@ -1458,74 +1474,22 @@ func hookCmd(args []string) {
 }
 
 func hookClaudeCmd() {
-	if os.Getenv(protocol.EnvBenchmarkMode) == "disabled" {
-		os.Stdout.Write(claude.MakeAllowResponse())
-		os.Exit(0)
-	}
 	data, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		os.Stdout.Write(claude.MakeAllowResponse())
-		os.Exit(0)
+		return
 	}
-
-	hookInput, err := claude.ParseHookInput(data)
-	if err != nil || hookInput.ToolName != "Bash" {
-		os.Stdout.Write(claude.MakeAllowResponse())
-		os.Exit(0)
-	}
-
-	bashInput, err := claude.ParseBashInput(hookInput.ToolInput)
+	executable, err := os.Executable()
 	if err != nil {
 		os.Stdout.Write(claude.MakeAllowResponse())
-		os.Exit(0)
+		return
 	}
-
-	cmd := bashInput.Command
-
-	// Bypass for shell metacharacters — let original Bash tool handle complex expressions.
-	if hasShellMeta(cmd) {
-		os.Stdout.Write(claude.MakeAllowResponse())
-		os.Exit(0)
-	}
-
-	cmdArgs := splitWords(cmd)
-	if len(cmdArgs) == 0 {
-		os.Stdout.Write(claude.MakeAllowResponse())
-		os.Exit(0)
-	}
-
-	// Bypass for acap commands to prevent recursion.
-	if common.IsAcapCommand(cmdArgs) {
-		os.Stdout.Write(claude.MakeAllowResponse())
-		os.Exit(0)
-	}
-
-	cwd, _ := os.Getwd()
-	sessionID := benchmarkSessionID(hookInput.SessionID)
-
-	req := &protocol.ToolRequest{
-		Protocol:   protocol.Version,
-		Command:    cmdArgs,
-		WorkingDir: cwd,
-		SessionID:  sessionID,
-	}
-
-	resp, err := engine.Execute(context.Background(), req)
+	response, _, err := claude.Prepare(data, executable)
 	if err != nil {
-		os.Stdout.Write(claude.MakeAllowResponse())
-		os.Exit(0)
+		fmt.Fprintln(os.Stderr, "acap: Claude hook bypassed:", err)
 	}
-
-	blockResp, err := claude.MakeBlockResponse(resp.Stdout)
-	if err != nil {
-		os.Stdout.Write(claude.MakeAllowResponse())
-		os.Exit(0)
-	}
-
-	os.Stdout.Write(blockResp)
-	os.Exit(2)
+	os.Stdout.Write(response)
 }
-
 func hookCodexCmd() {
 	if os.Getenv(protocol.EnvBenchmarkMode) == "disabled" {
 		os.Stdout.Write(codex.MakeAllowResponse())

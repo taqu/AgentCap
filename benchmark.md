@@ -589,11 +589,3 @@ B8  Benchmark comparison
  |
 B9  CI regression benchmark
 ```
-
-という境界を置くのがよいです。
-
-**B0〜B5だけでもかなり価値があります。** Agent integration や LLM の非決定性を持ち込む前に、AgentCap の「本当に workflow 全体で output を減らしているのか」を deterministic に測定できるからです。
-
-その後 B6 で初めて、「出力量は減ったが coding agent の task performance を悪化させていないか」という、現在の roadmap が最終的に答えたい問いに進めます。ロードマップ自身も、Phase 6 後の中心課題を「機能追加」ではなく、実際の agent efficiency / task performance の検証としています。:chatgpt-content-reference{index="9"}
-
-個人的には、次の実装単位は **B0+B1 を一つの Phase として coding agent に渡す**のがちょうどいいです。B1 は既存の execution/capture/reducer/store をかなり再利用でき、benchmark infrastructure の設計を早い段階で実データを使って検証できます。

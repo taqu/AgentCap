@@ -1,0 +1,37 @@
+# Deterministic benchmark regression suite and policy (Phase B9).
+#
+# "acap bench suite" runs the workloads below; "acap bench check" applies the
+# metric rules to every workload separately. This file is the single source
+# of CI thresholds. See benchmarks/README.md "Regression checks".
+#
+# Rule semantics: the increase is candidate - baseline (as in
+# "acap bench compare"). A check is a regression only when the increase
+# exceeds every configured limit it can be evaluated against, so
+# max_absolute_increase acts as a noise floor for small values.
+# max_relative_increase is a fraction: 0.10 means +10%.
+version: 1
+
+workloads:
+  - workloads/git/repeated-diff.yaml       # git diff reduction, repeated diff, unchanged/delta
+  - workloads/build/compile-fix.yaml       # build error-count transition
+  - workloads/test/fail-fix-pass.yaml      # test failure -> pass transition
+  - workloads/recovery/show-and-raw.yaml   # show and raw recovery accounting
+
+metrics:
+  # Output sizes are deterministic, so tolerances are tight.
+  stateless_bytes:
+    max_relative_increase: 0.10
+    max_absolute_increase: 32
+  stateful_bytes:
+    max_relative_increase: 0.10
+    max_absolute_increase: 32
+  total_visible_bytes:
+    max_relative_increase: 0.10
+    max_absolute_increase: 32
+  show_bytes:
+    max_relative_increase: 0.10
+    max_absolute_increase: 32
+  # Processing latency is noisy on shared CI hosts; only catch large increases.
+  processing_ns:
+    max_relative_increase: 1.00
+    max_absolute_increase: 100000000   # 100ms

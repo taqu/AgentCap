@@ -43,7 +43,7 @@ func (a *CodexAdapter) Run(ctx context.Context, req AgentRunRequest) (*AgentRunR
 		}
 	}
 
-	args := []string{"exec", "--json", "--ephemeral", "--ignore-user-config", "--ignore-rules", "--skip-git-repo-check", "--sandbox", "workspace-write", "--approve-for-me", "--cd", req.Workspace}
+	args := []string{"exec", "--json", "--ephemeral", "--ignore-rules", "--skip-git-repo-check", "--sandbox", "workspace-write", "--cd", req.Workspace}
 	if req.Mode.AgentCapEnabled() {
 		args = append(args, "--dangerously-bypass-hook-trust")
 	}

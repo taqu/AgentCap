@@ -412,7 +412,7 @@ func TestBenchCompareReadsResultsWithoutExecution(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &decoded); err != nil {
 		t.Fatalf("stdout is not clean JSON: %v\n%s", err, out)
 	}
-	if decoded.SchemaVersion != 1 || decoded.Candidate.TrialCount != 10 || decoded.Metrics[0].Delta == nil || *decoded.Metrics[0].Delta != -321000 {
+	if decoded.SchemaVersion != 2 || decoded.Candidate.TrialCount != 10 || decoded.Metrics[0].Delta == nil || *decoded.Metrics[0].Delta != -321000 {
 		t.Fatalf("decoded = %+v", decoded)
 	}
 
@@ -458,5 +458,107 @@ func TestBenchCompareRejectsIncompatibleAndInvalidInputs(t *testing.T) {
 		if code == 0 || out != "" {
 			t.Errorf("%v: exit %d, stdout %q", args, code, out)
 		}
+	}
+}
+
+// writeRegressionPolicy writes a one-workload regression suite gating only
+// deterministic byte metrics, and returns its path and workload name.
+func writeRegressionPolicy(t *testing.T, dir, metrics string) (string, string) {
+	t.Helper()
+	workloadPath, err := filepath.Abs("../../benchmarks/workloads/git/repeated-diff.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "regression.yaml")
+	content := "version: 1\nworkloads:\n  - " + strconv.Quote(workloadPath) + "\nmetrics:\n" + metrics
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path, "git/repeated-diff"
+}
+
+func writeSingleResult(t *testing.T, dir, workloadName string, stateful int64) string {
+	t.Helper()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "result.json")
+	data := fmt.Sprintf(`{"schema_version":4,"workload":%q,"commands":3,"raw_bytes":716,"stateless_bytes":285,
+		"stateful_bytes":%d,"initial_visible_bytes":%d,"show_bytes":0,"raw_retrieval_bytes":0,
+		"total_visible_bytes":%d,"show_count":0,"raw_retrieval_count":0,"processing_ns":1000}`,
+		workloadName, stateful, stateful, stateful)
+	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestBenchCheckExitStatus(t *testing.T) {
+	root := t.TempDir()
+	policy, name := writeRegressionPolicy(t, root, "  stateful_bytes:\n    max_relative_increase: 0.10\n")
+	baseline := filepath.Join(root, "baseline")
+	same := filepath.Join(root, "same")
+	regressed := filepath.Join(root, "regressed")
+	writeSingleResult(t, baseline, name, 200)
+	writeSingleResult(t, same, name, 200)
+	regressedFile := writeSingleResult(t, regressed, name, 300)
+
+	out, code := acap(t, root, "bench", "check", "--baseline", baseline, "--candidate", same, "--policy", policy)
+	if code != 0 || !strings.Contains(out, "Result: PASSED") {
+		t.Fatalf("pass: exit %d\n%s", code, out)
+	}
+
+	out, code = acap(t, root, "bench", "check", "--baseline", baseline, "--candidate", regressed, "--policy", policy)
+	if code != 1 || !strings.Contains(out, "REGRESSION") || !strings.Contains(out, "+50.0%") {
+		t.Fatalf("regression: exit %d\n%s", code, out)
+	}
+	out, code = acap(t, root, "bench", "check", "--json", "--baseline", baseline, "--candidate", regressed, "--policy", policy)
+	var evaluation struct {
+		Status string `json:"status"`
+		Passed bool   `json:"passed"`
+	}
+	if err := json.Unmarshal([]byte(out), &evaluation); err != nil || code != 1 || evaluation.Status != "failed" || evaluation.Passed {
+		t.Fatalf("regression json: exit %d err %v\n%s", code, err, out)
+	}
+
+	// Infrastructure errors are non-zero and distinguishable from regressions.
+	out, code = acap(t, root, "bench", "check", "--json", "--baseline", filepath.Join(root, "missing"), "--candidate", regressed, "--policy", policy)
+	if err := json.Unmarshal([]byte(out), &evaluation); err != nil || code != 2 || evaluation.Status != "error" || evaluation.Passed {
+		t.Fatalf("infrastructure error: exit %d err %v\n%s", code, err, out)
+	}
+	badPolicy, _ := writeRegressionPolicy(t, t.TempDir(), "  statefull_bytes:\n    max_relative_increase: 0.10\n")
+	if _, code = acap(t, root, "bench", "check", "--baseline", baseline, "--candidate", same, "--policy", badPolicy); code != 2 {
+		t.Fatalf("invalid policy: exit %d", code)
+	}
+
+	// B8 comparison stays descriptive for the same regressed pair.
+	if out, code = acap(t, root, "bench", "compare", filepath.Join(baseline, "result.json"), regressedFile); code != 0 {
+		t.Fatalf("compare: exit %d\n%s", code, out)
+	}
+}
+
+// The deterministic path end to end: benchmark -> compare -> policy, with no
+// coding agent involved.
+func TestBenchSuiteAndCheckDeterministicWorkload(t *testing.T) {
+	root := t.TempDir()
+	policy, _ := writeRegressionPolicy(t, root,
+		"  stateless_bytes:\n    max_relative_increase: 0\n  stateful_bytes:\n    max_relative_increase: 0\n")
+	baseline := filepath.Join(root, "results", "baseline")
+	candidate := filepath.Join(root, "results", "candidate")
+	for _, dir := range []string{baseline, candidate} {
+		if out, code := acap(t, root, "bench", "suite", "--out", dir, policy); code != 0 {
+			t.Fatalf("suite: exit %d\n%s", code, out)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(baseline, "git_repeated-diff.json")); err != nil {
+		t.Fatal(err)
+	}
+	out, code := acap(t, root, "bench", "check", "--baseline", baseline, "--candidate", candidate, "--policy", policy)
+	if code != 0 || !strings.Contains(out, "Result: PASSED") {
+		t.Fatalf("check: exit %d\n%s", code, out)
+	}
+	// Existing results are never overwritten.
+	if _, code := acap(t, root, "bench", "suite", "--out", baseline, policy); code == 0 {
+		t.Fatal("suite wrote into a non-empty directory")
 	}
 }

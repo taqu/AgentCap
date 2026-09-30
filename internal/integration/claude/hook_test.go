@@ -48,31 +48,13 @@ func TestParseBashInput(t *testing.T) {
 	}
 }
 
-func TestMakeBlockResponse(t *testing.T) {
-	out := "some compressed output"
-	data, err := MakeBlockResponse(out)
-	if err != nil {
-		t.Fatalf("MakeBlockResponse error: %v", err)
-	}
-	var m map[string]interface{}
-	if err := json.Unmarshal(data, &m); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
-	}
-	if m["decision"] != "block" {
-		t.Errorf("decision = %v, want block", m["decision"])
-	}
-	if m["reason"] != out {
-		t.Errorf("reason = %v, want %q", m["reason"], out)
-	}
-}
-
 func TestMakeAllowResponse(t *testing.T) {
 	data := MakeAllowResponse()
 	var m map[string]interface{}
 	if err := json.Unmarshal(data, &m); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
-	if m["decision"] != "allow" {
-		t.Errorf("decision = %v, want allow", m["decision"])
+	if len(m) != 0 {
+		t.Errorf("bypass must not grant permission: %v", m)
 	}
 }

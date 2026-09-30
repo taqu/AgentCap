@@ -138,6 +138,23 @@ re-run. Task success, visible bytes, commands, wall time, show/raw recovery,
 and AgentCap processing are shown independently, with no overall score or
 winner.
 
+### Regression checks (CI)
+
+```bash
+acap bench suite --out results/candidate benchmarks/regression.yaml
+acap bench check --baseline results/baseline --candidate results/candidate \
+  --policy benchmarks/regression.yaml
+```
+
+`bench suite` runs the small deterministic workload suite listed in
+[benchmarks/regression.yaml](benchmarks/regression.yaml); `bench check`
+applies that file's per-metric thresholds to every workload and exits 0 (pass),
+1 (regression), or 2 (could not evaluate). Unlike `bench compare`, which only
+describes differences, `bench check` is the policy gate used by the pull-request
+workflow, which compares the base revision's binary against the candidate on
+the same inputs. Real coding-agent benchmarks are deliberately not a CI gate.
+See [benchmarks/README.md](benchmarks/README.md#regression-checks).
+
 ## Debug
 
 ```bash

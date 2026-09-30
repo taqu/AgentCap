@@ -33,6 +33,18 @@ func Open(id string) (*Session, error) {
 	return open(id)
 }
 
+// OpenProject keeps adapter history alongside the project's result store.
+func OpenProject(root, id string) (*Session, error) {
+	if id == "" || filepath.Base(id) != id {
+		return nil, fmt.Errorf("session: invalid id")
+	}
+	dir := filepath.Join(root, ".acap", "sessions", id)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return nil, err
+	}
+	return &Session{ID: id, dir: dir, history: newHistory(filepath.Join(dir, "history.jsonl"))}, nil
+}
+
 // GenerateID generates a new random 6-hex session ID.
 func GenerateID() (string, error) {
 	b := make([]byte, 3)

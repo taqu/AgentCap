@@ -78,3 +78,53 @@ func TestLoadResultMissingFile(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func writeResult(t *testing.T, dir, name string) string {
+	t.Helper()
+	path := filepath.Join(dir, ResultFileName(name))
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if err := WriteJSON(f, &BenchmarkResult{SchemaVersion: BenchmarkResultSchemaVersion, Workload: name}); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestLoadResultSet(t *testing.T) {
+	dir := t.TempDir()
+	file := writeResult(t, dir, "git/repeated-diff")
+	writeResult(t, dir, "build/compile-fix")
+	if err := os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("ignored"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	set, err := LoadResultSet(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(set) != 2 || set["git/repeated-diff"] == nil || set["build/compile-fix"] == nil {
+		t.Fatalf("set = %v", set)
+	}
+	if single, err := LoadResultSet(file); err != nil || len(single) != 1 {
+		t.Fatalf("file set = %v, %v", single, err)
+	}
+
+	data, _ := os.ReadFile(file)
+	if err := os.WriteFile(filepath.Join(dir, "copy.json"), data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadResultSet(dir); err == nil || !strings.Contains(err.Error(), "more than one result") {
+		t.Fatalf("duplicate err = %v", err)
+	}
+	if _, err := LoadResultSet(t.TempDir()); err == nil {
+		t.Fatal("empty directory accepted")
+	}
+	if err := os.WriteFile(filepath.Join(dir, "bad.json"), []byte("{"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadResultSet(dir); err == nil {
+		t.Fatal("invalid result accepted")
+	}
+}

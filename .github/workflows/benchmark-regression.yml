@@ -1,0 +1,106 @@
+# Deterministic benchmark regression gate (Phase B9).
+#
+# Thin orchestration only: every benchmark and threshold decision is made by
+# "acap bench suite" / "acap bench check" with benchmarks/regression.yaml, so
+# a failure can be reproduced locally with the same commands.
+#
+# Baseline = the base revision's acap binary. Candidate = this revision's acap
+# binary. Both run the candidate's suite file, workloads, and fixtures, so the
+# comparison isolates AgentCap code changes from benchmark input changes.
+#
+# Real coding-agent benchmarks (acap bench agent) are intentionally not part
+# of this gate: they need LLM providers, cost money, and are nondeterministic.
+name: Benchmark regression
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      baseline_ref:
+        description: Git ref whose acap binary produces the baseline
+        required: true
+        default: main
+
+permissions:
+  contents: read
+
+jobs:
+  deterministic:
+    name: Deterministic benchmark regression check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      BASELINE_REF: ${{ github.event.pull_request.base.sha || inputs.baseline_ref }}
+      RESULTS: ${{ github.workspace }}/benchmark-results
+    steps:
+      - name: Check out candidate
+        uses: actions/checkout@v4
+        with:
+          path: candidate
+
+      - name: Check out baseline (${{ env.BASELINE_REF }})
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BASELINE_REF }}
+          path: baseline
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: candidate/go.mod
+          cache-dependency-path: |
+            candidate/go.sum
+            baseline/go.sum
+
+      - name: Build acap binaries
+        run: |
+          (cd candidate && go build -o "$RUNNER_TEMP/acap-candidate" ./cmd/acap)
+          (cd baseline && go build -o "$RUNNER_TEMP/acap-baseline" ./cmd/acap)
+
+      - name: Check baseline support
+        id: support
+        run: |
+          if "$RUNNER_TEMP/acap-baseline" bench suite --help >/dev/null 2>&1; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Regression check NOT performed: baseline revision $BASELINE_REF predates 'acap bench suite'."
+          fi
+
+      - name: Run suite with baseline binary
+        if: steps.support.outputs.available == 'true'
+        working-directory: candidate
+        env:
+          ACAP_ROOT: ${{ runner.temp }}/state-baseline
+        run: |
+          mkdir -p "$ACAP_ROOT"
+          "$RUNNER_TEMP/acap-baseline" bench suite --out "$RESULTS/baseline" benchmarks/regression.yaml
+
+      - name: Run suite with candidate binary
+        if: steps.support.outputs.available == 'true'
+        working-directory: candidate
+        env:
+          ACAP_ROOT: ${{ runner.temp }}/state-candidate
+        run: |
+          mkdir -p "$ACAP_ROOT"
+          "$RUNNER_TEMP/acap-candidate" bench suite --out "$RESULTS/candidate" benchmarks/regression.yaml
+
+      - name: Apply regression policy
+        if: steps.support.outputs.available == 'true'
+        working-directory: candidate
+        # The JSON run only saves the artifact; the identical human-readable
+        # run below prints the log and sets the step's exit status.
+        run: |
+          "$RUNNER_TEMP/acap-candidate" bench check --json \
+            --baseline "$RESULTS/baseline" --candidate "$RESULTS/candidate" \
+            --policy benchmarks/regression.yaml > "$RESULTS/evaluation.json" || true
+          "$RUNNER_TEMP/acap-candidate" bench check \
+            --baseline "$RESULTS/baseline" --candidate "$RESULTS/candidate" \
+            --policy benchmarks/regression.yaml
+
+      - name: Upload benchmark results
+        if: always() && steps.support.outputs.available == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-regression-results
+          path: ${{ env.RESULTS }}
+          if-no-files-found: ignore

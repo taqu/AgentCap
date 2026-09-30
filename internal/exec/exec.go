@@ -25,6 +25,10 @@ type Options struct {
 	StderrSink io.Writer
 	// Dir, if non-empty, sets the working directory for the child process.
 	Dir string
+	Env []string
+	// Integration capture is complete; ordinary CLI capture keeps its legacy cap.
+	UnlimitedCapture bool
+	ProcessTree      bool
 }
 
 // Result holds the outcome of a completed child execution.
@@ -53,10 +57,20 @@ func Run(ctx context.Context, args []string, opts *Options) (*Result, error) {
 	if opts != nil && opts.Dir != "" {
 		c.Dir = opts.Dir
 	}
+	if opts != nil && opts.Env != nil {
+		c.Env = opts.Env
+	}
+	if opts != nil && opts.ProcessTree {
+		configureProcessTree(c)
+	}
 
 	// Limit stdout/stderr capture to MaxOutputBytes.
 	stdoutBuf := &limitedBuffer{limit: MaxOutputBytes}
 	stderrBuf := &limitedBuffer{limit: MaxOutputBytes}
+	if opts != nil && opts.UnlimitedCapture {
+		stdoutBuf.limit = -1
+		stderrBuf.limit = -1
+	}
 
 	if opts != nil && opts.StdoutSink != nil {
 		c.Stdout = io.MultiWriter(stdoutBuf, opts.StdoutSink)
@@ -127,6 +141,9 @@ type limitedBuffer struct {
 }
 
 func (lb *limitedBuffer) Write(p []byte) (int, error) {
+	if lb.limit < 0 {
+		return lb.buf.Write(p)
+	}
 	if lb.truncated {
 		return len(p), nil // silently discard after cap
 	}

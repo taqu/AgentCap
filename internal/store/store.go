@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/taqu/agentcap/internal/integration/protocol"
 	"github.com/taqu/agentcap/internal/project"
 	"github.com/taqu/agentcap/internal/stats"
 	"modernc.org/sqlite"
@@ -32,13 +33,14 @@ type Meta struct {
 	CreatedAt   time.Time `json:"created_at"`
 	Truncated   bool      `json:"truncated"`
 	// Phase 3 fields (all omitempty for backwards compatibility)
-	SessionID    string `json:"session_id,omitempty"`
-	Sequence     int    `json:"sequence,omitempty"`
-	BaselineID   string `json:"baseline_id,omitempty"`
-	Presentation string `json:"presentation,omitempty"`
-	StdoutHash   string `json:"stdout_hash,omitempty"`
-	StderrHash   string `json:"stderr_hash,omitempty"`
-	WorkDir      string `json:"work_dir,omitempty"`
+	SessionID    string             `json:"session_id,omitempty"`
+	Sequence     int                `json:"sequence,omitempty"`
+	BaselineID   string             `json:"baseline_id,omitempty"`
+	Presentation string             `json:"presentation,omitempty"`
+	StdoutHash   string             `json:"stdout_hash,omitempty"`
+	StderrHash   string             `json:"stderr_hash,omitempty"`
+	WorkDir      string             `json:"work_dir,omitempty"`
+	Integration  *protocol.Metadata `json:"integration,omitempty"`
 }
 
 // Entry is a resolved stored result with paths to raw objects.
@@ -131,12 +133,20 @@ func (s *Store) Save(meta Meta, stdoutData, stderrData []byte, capsule string) (
 	if err != nil {
 		return nil, fmt.Errorf("store: marshal argv: %w", err)
 	}
+	integrationJSON := ""
+	if meta.Integration != nil {
+		data, marshalErr := json.Marshal(meta.Integration)
+		if marshalErr != nil {
+			return nil, marshalErr
+		}
+		integrationJSON = string(data)
+	}
 	queryStr := `INSERT INTO results (
 	id, created_at, started_at, cwd, argv_json, exit_code, duration_ms, truncated,
 	reducer, stdout_object, stderr_object, stdout_bytes, stderr_bytes,
 	stdout_hash, stderr_hash, capsule,
-	session_id, sequence, baseline_id, presentation, work_dir
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+	session_id, sequence, baseline_id, presentation, work_dir, integration_json
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
 	createdAt := meta.CreatedAt.UTC().Format(time.RFC3339Nano)
 	startedAt := meta.StartedAt.UTC().Format(time.RFC3339Nano)
 	strArgvJSON := string(argvJSON)
@@ -167,6 +177,7 @@ func (s *Store) Save(meta Meta, stdoutData, stderrData []byte, capsule string) (
 			meta.BaselineID,
 			meta.Presentation,
 			meta.WorkDir,
+			integrationJSON,
 		)
 		if err == nil {
 			break
@@ -198,7 +209,7 @@ func (s *Store) Open(id string) (*Entry, error) {
 		SELECT id, created_at, started_at, cwd, argv_json, exit_code, duration_ms, truncated,
 			reducer, stdout_object, stderr_object, stdout_bytes, stderr_bytes,
 			stdout_hash, stderr_hash, capsule,
-			session_id, sequence, baseline_id, presentation, work_dir
+			session_id, sequence, baseline_id, presentation, work_dir, integration_json
 		FROM results WHERE id = ?`, id)
 
 	entry, err := scanEntry(row, s.objsDir)
@@ -242,7 +253,7 @@ func (s *Store) List() ([]*Entry, error) {
 		SELECT id, created_at, started_at, cwd, argv_json, exit_code, duration_ms, truncated,
 			reducer, stdout_object, stderr_object, stdout_bytes, stderr_bytes,
 			stdout_hash, stderr_hash, capsule,
-			session_id, sequence, baseline_id, presentation, work_dir
+			session_id, sequence, baseline_id, presentation, work_dir, integration_json
 		FROM results ORDER BY created_at ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("store: list: %w", err)
@@ -467,6 +478,7 @@ func scanEntry(s scanner, objsDir string) (*Entry, error) {
 		stdoutHash, stderrHash, capsule         string
 		sessionID, baselineID, presentation     string
 		workDir                                 string
+		integrationJSON                         string
 		sequence                                int64
 	)
 
@@ -474,7 +486,7 @@ func scanEntry(s scanner, objsDir string) (*Entry, error) {
 		&id, &createdAt, &startedAt, &cwd, &argvJSON, &exitCode, &durationMs, &truncatedInt,
 		&reducer, &stdoutObj, &stderrObj, &stdoutBytes, &stderrBytes,
 		&stdoutHash, &stderrHash, &capsule,
-		&sessionID, &sequence, &baselineID, &presentation, &workDir,
+		&sessionID, &sequence, &baselineID, &presentation, &workDir, &integrationJSON,
 	)
 	if err != nil {
 		return nil, err
@@ -504,6 +516,9 @@ func scanEntry(s scanner, objsDir string) (*Entry, error) {
 		StdoutHash:   stdoutHash,
 		StderrHash:   stderrHash,
 		WorkDir:      workDir,
+	}
+	if integrationJSON != "" {
+		_ = json.Unmarshal([]byte(integrationJSON), &meta.Integration)
 	}
 
 	return &Entry{

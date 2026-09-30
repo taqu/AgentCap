@@ -26,6 +26,9 @@ var metricLabels = map[string]string{
 	"median_processing_ns":       "AgentCap processing",
 	"total_show_count":           "Show calls (total)",
 	"total_raw_retrieval_count":  "Raw retrievals (total)",
+	"raw_bytes":                  "Raw bytes (reference)",
+	"stateless_bytes":            "Stateless bytes",
+	"stateful_bytes":             "Stateful bytes",
 	"total_visible_bytes":        "Visible bytes",
 	"command_count":              "Commands",
 	"wall_time_ns":               "Wall time",
@@ -90,7 +93,7 @@ func WriteHuman(w io.Writer, c *Comparison) error {
 		t.outcome(c.Outcome("trials_with_raw_retrieval"))
 		t.metrics(c, "total_show_count", "total_raw_retrieval_count", "median_processing_ns")
 	} else {
-		t.metrics(c, "total_visible_bytes", "command_count", "wall_time_ns")
+		t.metrics(c, "raw_bytes", "stateless_bytes", "stateful_bytes", "total_visible_bytes", "command_count", "wall_time_ns")
 		t.blank()
 		t.metrics(c, "show_count", "raw_retrieval_count", "show_bytes", "raw_retrieval_bytes", "processing_ns")
 	}
@@ -119,7 +122,7 @@ func (t *table) metrics(c *Comparison, names ...string) {
 		if m == nil {
 			continue
 		}
-		t.row(metricLabels[name], formatValue(m.Unit, m.Baseline, m.BaselineStatus), formatValue(m.Unit, m.Candidate, m.CandidateStatus), formatDelta(m))
+		t.row(metricLabels[name], FormatValue(m.Unit, m.Baseline, m.BaselineStatus), FormatValue(m.Unit, m.Candidate, m.CandidateStatus), FormatDelta(m))
 	}
 }
 
@@ -171,7 +174,9 @@ func formatFraction(f *Fraction, status Availability) string {
 	return fmt.Sprintf("%d/%d", f.Count, f.Total)
 }
 
-func formatValue(unit Unit, v *int64, status Availability) string {
+// FormatValue renders one side of a metric, using "-" for not applicable and
+// "n/a" for unavailable values.
+func FormatValue(unit Unit, v *int64, status Availability) string {
 	if status != Measured || v == nil {
 		return unavailable(status)
 	}
@@ -189,7 +194,9 @@ func formatAmount(unit Unit, v int64) string {
 	}
 }
 
-func formatDelta(m *NumericMetric) string {
+// FormatDelta renders the signed candidate - baseline delta and, when
+// defined, the relative delta. It is empty when no delta exists.
+func FormatDelta(m *NumericMetric) string {
 	if m.Delta == nil {
 		return ""
 	}

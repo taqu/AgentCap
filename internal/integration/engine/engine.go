@@ -4,11 +4,14 @@ package engine
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/taqu/agentcap/internal/delta"
 	"github.com/taqu/agentcap/internal/exec"
+	"github.com/taqu/agentcap/internal/integration/common"
 	"github.com/taqu/agentcap/internal/integration/protocol"
 	"github.com/taqu/agentcap/internal/project"
 	"github.com/taqu/agentcap/internal/reduce"
@@ -56,6 +59,23 @@ type Outcome struct {
 // Run is Execute, but also returns the captured execution and timings.
 // The command is executed exactly once.
 func Run(ctx context.Context, req *protocol.ToolRequest) (*Outcome, error) {
+	cp := *req
+	req = &cp
+	classification := req.Command
+	if req.ShellCommand != nil {
+		if req.Shell == "" {
+			return nil, fmt.Errorf("shell is required for shell command")
+		}
+		req.Command = []string{req.Shell, "-c", *req.ShellCommand}
+		classification = shellClassification(*req.ShellCommand)
+	}
+	root := req.StoreRoot
+	if root == "" {
+		root = project.FindRoot(req.WorkingDir)
+	}
+	if req.Integration != nil {
+		req.SessionID = common.MapSession(req.Integration.Agent, req.Integration.ExternalSession, root)
+	}
 	if len(req.Command) == 0 {
 		return &Outcome{Response: &protocol.ToolResponse{
 			Protocol: protocol.Version,
@@ -68,6 +88,18 @@ func Run(ctx context.Context, req *protocol.ToolRequest) (*Outcome, error) {
 
 	// Execute the command.
 	opts := &exec.Options{}
+	if len(req.Env) > 0 || req.Integration != nil {
+		opts.Env = mergeEnv(os.Environ(), req.Env)
+		if req.Integration != nil {
+			opts.Env = common.EnvWithDepth(opts.Env)
+		}
+	}
+	if req.ShellCommand != nil {
+		opts.ProcessTree = true
+	}
+	if req.Integration != nil {
+		opts.UnlimitedCapture = true
+	}
 	if req.WorkingDir != "" {
 		opts.Dir = req.WorkingDir
 	}
@@ -92,15 +124,22 @@ func Run(ctx context.Context, req *protocol.ToolRequest) (*Outcome, error) {
 			Error:    execErr.Error(),
 		}}, nil
 	}
+	if req.ShellCommand != nil && len(classification) > 0 {
+		// Reducers may inspect Args for flags; this is attribution only, after
+		// opaque shell execution has finished, never a second execution path.
+		result.Args = classification
+	}
 
 	processStart := time.Now()
 
 	// Reduce output.
-	reducer := reduce.Select(req.Command)
+	reducer := reduce.Select(classification)
 	reduceStart := time.Now()
+	reductionFailed := false
 	reduced := func() (r *reduce.ReducedResult) {
 		defer func() {
 			if rec := recover(); rec != nil {
+				reductionFailed = true
 				// Fail-open: reducer panicked; return raw output.
 				r = &reduce.ReducedResult{
 					Output:   string(result.Stdout),
@@ -111,6 +150,10 @@ func Run(ctx context.Context, req *protocol.ToolRequest) (*Outcome, error) {
 		}()
 		return reducer.Reduce(result)
 	}()
+	if reduced == nil {
+		reductionFailed = true
+		reduced = &reduce.ReducedResult{Output: string(result.Stdout)}
+	}
 	reduceDuration := time.Since(reduceStart)
 
 	// Compute hashes.
@@ -135,12 +178,19 @@ func Run(ctx context.Context, req *protocol.ToolRequest) (*Outcome, error) {
 		StdoutHash:  stdoutHash,
 		StderrHash:  stderrHash,
 		WorkDir:     workDir,
+		Integration: req.Integration,
 	}
 
 	// Open session.
 	var sess *session.Session
 	if req.SessionID != "" {
-		if s, err := session.Open(req.SessionID); err == nil {
+		openSession := func() (*session.Session, error) {
+			if req.Integration != nil {
+				return session.OpenProject(root, req.SessionID)
+			}
+			return session.Open(req.SessionID)
+		}
+		if s, err := openSession(); err == nil {
 			sess = s
 		}
 	}
@@ -157,10 +207,6 @@ func Run(ctx context.Context, req *protocol.ToolRequest) (*Outcome, error) {
 	}
 
 	// Open store — fail-open if it fails.
-	root := req.StoreRoot
-	if root == "" {
-		root = project.FindRoot(workDir)
-	}
 	st, storeInitErr := store.Open(root)
 	if storeInitErr == nil {
 		defer st.Close()
@@ -276,6 +322,11 @@ func Run(ctx context.Context, req *protocol.ToolRequest) (*Outcome, error) {
 		Stdout:       output,
 		Stderr:       string(result.Stderr),
 		Presentation: presentation,
+	}
+	if req.Integration != nil && (entry == nil || reductionFailed) {
+		resp.Stdout = string(result.Stdout)
+		resp.Stderr = string(result.Stderr)
+		resp.Error = "AgentCap processing unavailable; original output returned"
 	}
 	processingDuration := time.Since(processStart)
 	if st != nil {

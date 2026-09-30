@@ -38,6 +38,12 @@ var migrations = map[int]func(*sql.Tx) error{
 	1: migrateV1ToV2,
 	2: migrateV2ToV3,
 	3: migrateV3ToV4,
+	4: migrateV4ToV5,
+}
+
+func migrateV4ToV5(tx *sql.Tx) error {
+	_, err := tx.ExecContext(context.Background(), `ALTER TABLE results ADD COLUMN integration_json TEXT NOT NULL DEFAULT ''`)
+	return err
 }
 
 func migrateV3ToV4(tx *sql.Tx) error {

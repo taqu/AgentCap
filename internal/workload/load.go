@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"sort"
+	"strings"
 )
 
 // ResultKind distinguishes the two serialized benchmark result shapes.
@@ -119,6 +122,54 @@ func DecodeResult(data []byte) (*StoredResult, error) {
 		}
 	}
 	return &StoredResult{Kind: ResultKindSingle, Single: &result}, nil
+}
+
+// LoadResultSet loads the results at path, keyed by workload name. path is
+// either one result file or a directory whose *.json files (not recursive)
+// are each one result, as written by "acap bench suite". An empty set and two
+// results for the same workload are errors.
+func LoadResultSet(path string) (map[string]*StoredResult, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	files := []string{path}
+	if info.IsDir() {
+		if files, err = filepath.Glob(filepath.Join(path, "*.json")); err != nil {
+			return nil, err
+		}
+		sort.Strings(files)
+	}
+	set := make(map[string]*StoredResult, len(files))
+	for _, file := range files {
+		result, err := LoadResult(file)
+		if err != nil {
+			return nil, err
+		}
+		name := result.WorkloadName()
+		if _, dup := set[name]; dup {
+			return nil, fmt.Errorf("%s: more than one result for workload %q", path, name)
+		}
+		set[name] = result
+	}
+	if len(set) == 0 {
+		return nil, fmt.Errorf("%s: no benchmark result files", path)
+	}
+	return set, nil
+}
+
+// WorkloadName returns the stable workload identity of the result.
+func (r *StoredResult) WorkloadName() string {
+	if r.Repeated != nil {
+		return r.Repeated.Workload
+	}
+	return r.Single.Workload
+}
+
+// ResultFileName is the file name "acap bench suite" uses for a workload's
+// result. Workload names may contain "/", which is replaced by "_".
+func ResultFileName(workloadName string) string {
+	return strings.ReplaceAll(workloadName, "/", "_") + ".json"
 }
 
 func requireFields(fields map[string]json.RawMessage, names ...string) error {

@@ -27,6 +27,21 @@ type ToolRequest struct {
 	Env       map[string]string `json:"env,omitempty"`
 	SessionID string            `json:"session_id,omitempty"`
 	MaxBytes  int               `json:"max_bytes,omitempty"`
+	// ShellCommand is opaque shell source. Command remains the direct argv path.
+	ShellCommand *string   `json:"shell_command,omitempty"`
+	Shell        string    `json:"shell,omitempty"`
+	Integration  *Metadata `json:"integration,omitempty"`
+}
+
+// Metadata is agent-independent attribution, never executable configuration.
+type Metadata struct {
+	Agent            string `json:"agent"`
+	Adapter          string `json:"adapter"`
+	Version          string `json:"version"`
+	ExternalSession  string `json:"external_session,omitempty"`
+	ToolUseID        string `json:"tool_use_id,omitempty"`
+	SubagentID       string `json:"subagent_id,omitempty"`
+	AdapterLatencyNs int64  `json:"adapter_latency_ns"`
 }
 
 // ToolResponse is written to stdout by "acap exec --protocol=json".
