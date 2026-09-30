@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/taqu/agentcap/internal/workload"
 )
 
 // The test binary doubles as the acap CLI (ACAP_TEST_AS_CLI=1) and as a
@@ -154,11 +157,70 @@ func TestBenchCommandNotFound(t *testing.T) {
 
 func TestBenchHelp(t *testing.T) {
 	root := t.TempDir()
-	for _, args := range [][]string{{"bench", "--help"}, {"bench", "command", "--help"}, {"bench", "session", "--help"}, {"bench", "run", "--help"}, {"bench", "agent", "--help"}} {
+	for _, args := range [][]string{{"bench", "--help"}, {"bench", "command", "--help"}, {"bench", "session", "--help"}, {"bench", "run", "--help"}, {"bench", "agent", "--help"}, {"bench", "compare", "--help"}} {
 		out, code := acap(t, root, args...)
-		if code != 0 || (!strings.Contains(out, "single command") && !strings.Contains(out, "benchmark session") && !strings.Contains(out, "versioned workload") && !strings.Contains(out, "coding-agent trial")) {
+		if code != 0 || (!strings.Contains(out, "single command") && !strings.Contains(out, "benchmark session") && !strings.Contains(out, "versioned workload") && !strings.Contains(out, "coding-agent trial") && !strings.Contains(out, "existing structured")) {
 			t.Errorf("%v: exit %d, output:\n%s", args, code, out)
 		}
+	}
+}
+
+func TestBenchCompareJSONIsReadOnly(t *testing.T) {
+	root := t.TempDir()
+	makeResult := func(mode string, visible int64) *workload.RepeatedBenchmarkResult {
+		success := true
+		commands, wall, processing := int64(2), int64(3_000_000_000), int64(4_000_000)
+		trial := &workload.BenchmarkResult{
+			SchemaVersion: workload.BenchmarkResultSchemaVersion, Trial: 1,
+			Workload: "agent/compare", Agent: "codex", Mode: mode,
+			TaskSuccess: &success, ExecutionStatus: "completed", Commands: int(commands),
+			TotalVisibleBytes: visible, WallTimeNS: wall, ProcessingNS: processing,
+		}
+		return &workload.RepeatedBenchmarkResult{
+			SchemaVersion: workload.BenchmarkResultSchemaVersion,
+			Workload:      "agent/compare", Agent: "codex", Mode: mode,
+			RequestedTrialCount: 1, TrialCount: 1, SuccessCount: 1, RunStatus: "completed",
+			Aggregate: workload.RepeatedBenchmarkAggregate{
+				MedianTotalVisibleBytes: &visible, MedianCommandCount: &commands,
+				MedianWallTimeNS: &wall, MedianProcessingNS: &processing,
+			},
+			Trials: []*workload.BenchmarkResult{trial},
+		}
+	}
+	baselinePath := filepath.Join(root, "baseline.json")
+	candidatePath := filepath.Join(root, "candidate.json")
+	baselineData, _ := json.Marshal(makeResult("disabled", 100))
+	candidateData, _ := json.Marshal(makeResult("integrated", 60))
+	if err := os.WriteFile(baselinePath, baselineData, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(candidatePath, candidateData, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out, code := acap(t, root, "bench", "compare", baselinePath, candidatePath, "--json")
+	if code != 0 {
+		t.Fatalf("exit=%d output=%s", code, out)
+	}
+	var comparison struct {
+		SchemaVersion int `json:"schema_version"`
+		Metrics       struct {
+			Visible struct {
+				Delta int64 `json:"delta"`
+			} `json:"total_visible_bytes"`
+		} `json:"metrics"`
+	}
+	if err := json.Unmarshal([]byte(out), &comparison); err != nil {
+		t.Fatalf("stdout is not clean JSON: %v\n%s", err, out)
+	}
+	if comparison.SchemaVersion != 1 || comparison.Metrics.Visible.Delta != -40 {
+		t.Fatalf("comparison = %+v", comparison)
+	}
+	if after, _ := os.ReadFile(baselinePath); !bytes.Equal(after, baselineData) {
+		t.Fatal("comparison modified baseline input")
+	}
+	if after, _ := os.ReadFile(candidatePath); !bytes.Equal(after, candidateData) {
+		t.Fatal("comparison modified candidate input")
 	}
 }
 

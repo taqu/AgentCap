@@ -229,3 +229,40 @@ in `trials`, so the median never hides outliers.
 
 B7 does not compare modes, rank configurations, calculate significance, or
 apply CI thresholds. Those remain separate later phases.
+
+## Comparing saved results
+
+Save two JSON benchmark results, then compare them without rerunning either
+workload:
+
+```text
+acap bench compare baseline.json candidate.json
+acap bench compare baseline.json candidate.json --json
+```
+
+The first input is always the baseline, the second is the candidate, and every
+numeric delta is defined as `candidate - baseline`. Relative change is emitted
+only when both measurements exist and the baseline is non-zero. Missing values
+remain `null` in comparison JSON and `n/a` in the human table.
+
+Comparison requires the same result kind (single or repeated), workload, and
+agent. Different AgentCap modes are expected and supported. Repeated results
+may have different trial counts; each side retains its own completed/requested
+counts and B7 aggregate. Schema-4 repeated results and compatible schema-3/4
+single results are supported. Other schemas, malformed JSON, mixed result
+kinds, different workloads, and different agents are rejected explicitly.
+
+For repeated results the command compares the canonical B7 medians rather than
+recalculating them. The compact table and comparison-schema-version-1 JSON both
+preserve independent dimensions:
+
+- objective task-success counts;
+- total agent-visible bytes;
+- command count;
+- complete workflow wall time;
+- trials using `show` or raw retrieval and total recovery calls;
+- AgentCap processing time.
+
+The comparator only reads structured result files. It does not invoke an agent,
+create a fixture, execute a verifier, select a winner, produce a composite
+score, or apply CI thresholds.
