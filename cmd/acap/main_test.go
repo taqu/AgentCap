@@ -154,9 +154,9 @@ func TestBenchCommandNotFound(t *testing.T) {
 
 func TestBenchHelp(t *testing.T) {
 	root := t.TempDir()
-	for _, args := range [][]string{{"bench", "--help"}, {"bench", "command", "--help"}, {"bench", "session", "--help"}, {"bench", "run", "--help"}} {
+	for _, args := range [][]string{{"bench", "--help"}, {"bench", "command", "--help"}, {"bench", "session", "--help"}, {"bench", "run", "--help"}, {"bench", "agent", "--help"}} {
 		out, code := acap(t, root, args...)
-		if code != 0 || (!strings.Contains(out, "single command") && !strings.Contains(out, "benchmark session") && !strings.Contains(out, "versioned workload")) {
+		if code != 0 || (!strings.Contains(out, "single command") && !strings.Contains(out, "benchmark session") && !strings.Contains(out, "versioned workload") && !strings.Contains(out, "coding-agent trial")) {
 			t.Errorf("%v: exit %d, output:\n%s", args, code, out)
 		}
 	}
@@ -256,12 +256,23 @@ steps:
 	if err := json.Unmarshal([]byte(out), &result); err != nil {
 		t.Fatalf("stdout is not JSON-only: %v\n%s", err, out)
 	}
-	if result.SchemaVersion != 2 || result.Workload != "cli/json" || result.Commands != 1 || result.RawBytes == 0 || result.ProcessingNS <= 0 || result.InitialVisibleBytes != result.StatefulBytes || result.ShowCount != 2 || result.RawRetrievalCount != 1 || result.ShowBytes <= 0 || result.RawRetrievalBytes <= 0 || result.TotalVisibleBytes != result.InitialVisibleBytes+result.ShowBytes+result.RawRetrievalBytes {
+	if result.SchemaVersion != 3 || result.Workload != "cli/json" || result.Commands != 1 || result.RawBytes == 0 || result.ProcessingNS <= 0 || result.InitialVisibleBytes != result.StatefulBytes || result.ShowCount != 2 || result.RawRetrievalCount != 1 || result.ShowBytes <= 0 || result.RawRetrievalBytes <= 0 || result.TotalVisibleBytes != result.InitialVisibleBytes+result.ShowBytes+result.RawRetrievalBytes {
 		t.Fatalf("result = %+v", result)
 	}
 	data, err := os.ReadFile(counter)
 	if err != nil || strings.Count(string(data), "\n") != 1 {
 		t.Fatalf("target executed other than once: counter=%q err=%v", data, err)
+	}
+}
+
+func TestBenchmarkSessionIDModes(t *testing.T) {
+	t.Setenv("ACAP_BENCH_MODE", "stateless")
+	if got := benchmarkSessionID("agent-session"); got != "" {
+		t.Fatalf("stateless session = %q", got)
+	}
+	t.Setenv("ACAP_BENCH_MODE", "stateful")
+	if got := benchmarkSessionID("agent-session"); got == "" {
+		t.Fatal("stateful mode did not map the agent session")
 	}
 }
 

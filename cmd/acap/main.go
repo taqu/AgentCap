@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/taqu/agentcap/internal/agentbench"
 	"github.com/taqu/agentcap/internal/bench"
 	"github.com/taqu/agentcap/internal/buildparse"
 	"github.com/taqu/agentcap/internal/delta"
@@ -43,6 +44,7 @@ Usage:
   acap bench command [--json] [--session <id>] -- <command> [args...]
   acap bench session <start|show>
   acap bench run [--json] [--verbose] [--keep-workspace] <workload.yaml>
+  acap bench agent --workload <workload.yaml> --agent codex --mode <mode>
   acap session <start|info|list|history>
   acap history
   acap exec [--protocol=json]
@@ -63,6 +65,7 @@ Examples:
   acap bench command -- git diff
   acap bench session start
   acap bench run benchmarks/workloads/git/repeated-diff.yaml
+  acap bench agent --workload benchmarks/workloads/agent/go-bugfix.yaml --agent codex --mode integrated
   acap session start
   acap session info
   acap session list
@@ -91,6 +94,7 @@ Subcommands:
   command   Benchmark a single command, optionally inside a benchmark session.
   session   Start or inspect a persistent stateful benchmark session.
   run       Run a reproducible workload in an isolated temporary workspace.
+  agent     Run one real coding-agent task trial.
 
 Run "acap bench <subcommand> --help" for details.
 `
@@ -143,6 +147,28 @@ Flags:
   --json            Print the versioned benchmark result as JSON only.
   --verbose         Include one concise line per workload step.
   --keep-workspace  Retain and print the temporary workspace path.
+`
+
+const benchAgentUsage = `Usage: acap bench agent --workload <workload.yaml> --agent codex --mode <mode> [flags]
+
+Runs one coding-agent trial in a fresh fixture workspace, then executes the
+workload verifier outside the agent-visible measurement boundary.
+
+Modes (required):
+  disabled    No AgentCap hook; measure normal command output from agent events.
+  stateless   Intercept commands independently without session deltas.
+  stateful    Session-aware interception without recovery instructions.
+  integrated  Stateful interception plus normal show/raw recovery guidance.
+
+Flags:
+  --workload <path>  Coding-agent workload YAML (required).
+  --agent <name>     Agent adapter; currently codex (required).
+  --mode <mode>      Comparison mode (required).
+  --model <model>    Optional agent model override.
+  --timeout <dur>    Agent timeout override (for example 10m).
+  --json             Print the versioned result as JSON only.
+  --verbose          Send captured agent logs to stderr.
+  --keep-workspace   Retain and print the temporary workspace path.
 `
 
 var debugMode = os.Getenv("ACAP_DEBUG") == "1"
@@ -271,6 +297,7 @@ func runCmd(args []string) {
 
 	// Determine presentation.
 	output := reduced.Output
+	statelessOutput := output
 	presentation := string(delta.PresentationFull)
 
 	// Save git diff metadata if applicable.
@@ -348,6 +375,7 @@ func runCmd(args []string) {
 	// Inject result ID.
 	if entry != nil {
 		output = injectResultID(output, entry.ID)
+		statelessOutput = injectResultID(statelessOutput, entry.ID)
 	}
 	fmt.Print(output)
 
@@ -358,10 +386,11 @@ func runCmd(args []string) {
 	}
 
 	// Persist statistics.
-	stateless := reduced.RetBytes
+	raw := len(result.Stdout) + len(result.Stderr)
+	stateless := len(statelessOutput)
 	stateful := len(output)
 	if st != nil {
-		_ = st.RecordRun(reduced.RawBytes, stateless, stateful, presentation)
+		_ = st.RecordRun(raw, stateless, stateful, presentation)
 	}
 
 	if debugMode {
@@ -909,9 +938,86 @@ func benchCmd(args []string) {
 		benchSessionCmd(args[1:])
 	case "run":
 		benchRunCmd(args[1:])
+	case "agent":
+		benchAgentCmd(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "acap: bench: unknown subcommand %q\n\n%s", args[0], benchUsage)
 		os.Exit(1)
+	}
+}
+
+func benchAgentCmd(args []string) {
+	fs := flag.NewFlagSet("bench agent", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	workloadFlag := fs.String("workload", "", "coding-agent workload")
+	agentFlag := fs.String("agent", "", "coding agent")
+	modeFlag := fs.String("mode", "", "AgentCap mode")
+	modelFlag := fs.String("model", "", "agent model override")
+	timeoutFlag := fs.Duration("timeout", 0, "agent timeout override")
+	jsonFlag := fs.Bool("json", false, "print JSON result")
+	verboseFlag := fs.Bool("verbose", false, "print captured agent logs to stderr")
+	keepFlag := fs.Bool("keep-workspace", false, "retain temporary workspace")
+	if len(args) > 0 && (args[0] == "--help" || args[0] == "-h") {
+		fmt.Fprint(os.Stdout, benchAgentUsage)
+		os.Exit(0)
+	}
+	if err := fs.Parse(args); err != nil {
+		fmt.Fprintf(os.Stderr, "acap: bench agent: %v\n\n%s", err, benchAgentUsage)
+		os.Exit(1)
+	}
+	if *workloadFlag == "" || *agentFlag == "" || *modeFlag == "" || len(fs.Args()) != 0 {
+		fmt.Fprint(os.Stderr, benchAgentUsage)
+		os.Exit(1)
+	}
+	mode, err := agentbench.ParseMode(*modeFlag)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "acap: bench agent: %v\n", err)
+		os.Exit(1)
+	}
+	adapter, err := agentbench.NewAdapter(*agentFlag, *modelFlag)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "acap: bench agent: %v\n", err)
+		os.Exit(1)
+	}
+	definition, err := workload.Load(*workloadFlag)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "acap: bench agent: %v\n", err)
+		os.Exit(1)
+	}
+	cwd, _ := os.Getwd()
+	executable, _ := os.Executable()
+	hookCommand := strconv.Quote(executable) + " hook codex"
+	trial, err := agentbench.Run(context.Background(), definition, agentbench.Options{
+		Adapter: adapter, Mode: mode, StoreRoot: project.FindRoot(cwd),
+		Timeout: *timeoutFlag, KeepWorkspace: *keepFlag,
+		HookCommand: hookCommand, Model: *modelFlag,
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "acap: bench agent: %v\n", err)
+		if trial != nil && trial.RetainedWorkspace != "" {
+			fmt.Fprintf(os.Stderr, "workspace retained: %s\n", trial.RetainedWorkspace)
+		}
+		os.Exit(1)
+	}
+	if *verboseFlag {
+		if len(trial.AgentStdout) != 0 {
+			fmt.Fprintf(os.Stderr, "agent stdout:\n%s\n", trial.AgentStdout)
+		}
+		if len(trial.AgentStderr) != 0 {
+			fmt.Fprintf(os.Stderr, "agent stderr:\n%s\n", trial.AgentStderr)
+		}
+	}
+	if *jsonFlag {
+		err = workload.WriteJSON(os.Stdout, trial.Benchmark)
+	} else {
+		err = workload.WriteHuman(os.Stdout, trial.Benchmark, false)
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "acap: bench agent: %v\n", err)
+		os.Exit(1)
+	}
+	if trial.RetainedWorkspace != "" {
+		fmt.Fprintf(os.Stderr, "workspace retained: %s\n", trial.RetainedWorkspace)
 	}
 }
 
@@ -1252,6 +1358,10 @@ func hookCmd(args []string) {
 }
 
 func hookClaudeCmd() {
+	if os.Getenv(protocol.EnvBenchmarkMode) == "disabled" {
+		os.Stdout.Write(claude.MakeAllowResponse())
+		os.Exit(0)
+	}
 	data, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		os.Stdout.Write(claude.MakeAllowResponse())
@@ -1291,7 +1401,7 @@ func hookClaudeCmd() {
 	}
 
 	cwd, _ := os.Getwd()
-	sessionID := common.MapAgentSession(hookInput.SessionID)
+	sessionID := benchmarkSessionID(hookInput.SessionID)
 
 	req := &protocol.ToolRequest{
 		Protocol:   protocol.Version,
@@ -1317,6 +1427,10 @@ func hookClaudeCmd() {
 }
 
 func hookCodexCmd() {
+	if os.Getenv(protocol.EnvBenchmarkMode) == "disabled" {
+		os.Stdout.Write(codex.MakeAllowResponse())
+		os.Exit(0)
+	}
 	data, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		os.Stdout.Write(codex.MakeAllowResponse())
@@ -1359,7 +1473,7 @@ func hookCodexCmd() {
 	}
 
 	cwd, _ := os.Getwd()
-	sessionID := common.MapAgentSession(hookInput.SessionID)
+	sessionID := benchmarkSessionID(hookInput.SessionID)
 
 	req := &protocol.ToolRequest{
 		Protocol:   protocol.Version,
@@ -1382,6 +1496,13 @@ func hookCodexCmd() {
 
 	os.Stdout.Write(blockResp)
 	os.Exit(2)
+}
+
+func benchmarkSessionID(agentSessionID string) string {
+	if os.Getenv(protocol.EnvBenchmarkMode) == "stateless" {
+		return ""
+	}
+	return common.MapAgentSession(agentSessionID)
 }
 
 // integrateCmd implements "acap integrate <claude|codex|status> [--dry-run] [--remove]".

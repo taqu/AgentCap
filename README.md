@@ -99,10 +99,26 @@ The result includes `schema_version`; consumers should use that value to choose
 how to interpret the remaining numeric fields as the schema evolves.
 
 Workloads can add deterministic `show` and `raw` steps that reference an earlier
-1-based run number. Schema version 2 separates initial visible output from
+1-based run number. Schema version 3 separates initial visible output from
 recovery bytes and reports `total_visible_bytes = initial_visible_bytes +
 show_bytes + raw_retrieval_bytes`. Repeated retrievals count repeatedly because
 the agent receives their output repeatedly.
+
+### Coding-agent workflow benchmark
+
+```bash
+acap bench agent \
+  --workload benchmarks/workloads/agent/go-bugfix.yaml \
+  --agent codex \
+  --mode integrated \
+  --json
+```
+
+This runs one unattended Codex trial in a fresh fixture workspace and verifies
+the result with benchmark-controlled commands. Supported modes are `disabled`,
+`stateless`, `stateful`, and `integrated`. See
+[benchmarks/README.md](benchmarks/README.md) for their exact semantics and the
+measurement boundary.
 
 ## Debug
 

@@ -43,7 +43,7 @@ func TestBenchmarkResultSchemaAndJSONFields(t *testing.T) {
 	if result.SchemaVersion != BenchmarkResultSchemaVersion {
 		t.Fatalf("schema version = %d, constant = %d", result.SchemaVersion, BenchmarkResultSchemaVersion)
 	}
-	if BenchmarkResultSchemaVersion != 2 {
+	if BenchmarkResultSchemaVersion != 3 {
 		t.Fatalf("schema version constant = %d", BenchmarkResultSchemaVersion)
 	}
 	var buf bytes.Buffer
@@ -57,7 +57,7 @@ func TestBenchmarkResultSchemaAndJSONFields(t *testing.T) {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 	want := map[string]string{
-		"schema_version":        "2",
+		"schema_version":        "3",
 		"commands":              "3",
 		"raw_bytes":             "1000",
 		"stateless_bytes":       "400",
@@ -106,5 +106,37 @@ func TestHumanAndJSONUseCanonicalResult(t *testing.T) {
 	}
 	if !strings.Contains(machine.String(), `"raw_bytes": 1000`) {
 		t.Fatalf("JSON output did not use canonical result:\n%s", machine.String())
+	}
+}
+
+func TestAgentBenchmarkResultFormats(t *testing.T) {
+	success := true
+	exitCode := 0
+	result := &BenchmarkResult{
+		SchemaVersion: BenchmarkResultSchemaVersion,
+		Workload:      "agent/go-bugfix", Agent: "codex", Mode: "integrated",
+		TaskSuccess: &success, ExecutionStatus: "completed", AgentExitCode: &exitCode,
+		Commands: 4, RawBytes: 1000, InitialVisibleBytes: 300,
+		ShowBytes: 20, TotalVisibleBytes: 320, ShowCount: 1,
+		ProcessingNS: 2_000_000, WallTimeNS: 3_000_000_000,
+	}
+	var machine, human bytes.Buffer
+	if err := WriteJSON(&machine, result); err != nil {
+		t.Fatal(err)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(machine.Bytes(), &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded["schema_version"] != float64(3) || decoded["agent"] != "codex" || decoded["mode"] != "integrated" || decoded["task_success"] != true || decoded["execution_status"] != "completed" || decoded["wall_time_ns"] != float64(3_000_000_000) {
+		t.Fatalf("agent JSON = %#v", decoded)
+	}
+	if err := WriteHuman(&human, result, false); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"agent: codex", "mode: integrated", "task success: yes", "agent wall clock:", "AgentCap processing:"} {
+		if !strings.Contains(human.String(), want) {
+			t.Errorf("human output missing %q:\n%s", want, human.String())
+		}
 	}
 }

@@ -27,11 +27,14 @@ var namePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/-]*$`)
 
 // Definition is version 1 of the workload file format.
 type Definition struct {
-	Version int      `yaml:"version"`
-	Name    string   `yaml:"name"`
-	Fixture string   `yaml:"fixture"`
-	Git     GitSetup `yaml:"git,omitempty"`
-	Steps   []Step   `yaml:"steps"`
+	Version int          `yaml:"version"`
+	Name    string       `yaml:"name"`
+	Fixture string       `yaml:"fixture"`
+	Git     GitSetup     `yaml:"git,omitempty"`
+	Steps   []Step       `yaml:"steps"`
+	Task    string       `yaml:"task,omitempty"`
+	Timeout string       `yaml:"timeout,omitempty"`
+	Verify  []VerifyStep `yaml:"verify,omitempty"`
 
 	fixtureDir string
 }
@@ -89,6 +92,11 @@ type ShowStep struct {
 type RawStep struct {
 	Command int    `yaml:"command"`
 	Stream  string `yaml:"stream,omitempty"`
+}
+
+// VerifyStep is benchmark-controlled and is never exposed to the agent.
+type VerifyStep struct {
+	Run *RunStep `yaml:"run"`
 }
 
 // Load parses and fully validates a workload before any target command runs.
@@ -159,8 +167,32 @@ func (d *Definition) validate(path string) error {
 		return fmt.Errorf("fixture is not a directory: %s", d.Fixture)
 	}
 	d.fixtureDir = fixtureReal
-	if len(d.Steps) == 0 {
-		return errors.New("workload must contain at least one step")
+	agentWorkload := strings.TrimSpace(d.Task) != ""
+	if len(d.Steps) == 0 && !agentWorkload {
+		return errors.New("workload must contain steps or an agent task")
+	}
+	if agentWorkload && len(d.Steps) != 0 {
+		return errors.New("agent workloads use fixture setup and cannot contain deterministic steps")
+	}
+	if agentWorkload && len(d.Verify) == 0 {
+		return errors.New("agent workload verification is required")
+	}
+	if !agentWorkload && (d.Timeout != "" || len(d.Verify) != 0) {
+		return errors.New("timeout and verify require an agent task")
+	}
+	if d.Timeout != "" {
+		timeout, err := time.ParseDuration(d.Timeout)
+		if err != nil || timeout <= 0 {
+			return fmt.Errorf("invalid agent timeout %q", d.Timeout)
+		}
+	}
+	for i := range d.Verify {
+		if d.Verify[i].Run == nil {
+			return fmt.Errorf("verify step %d: run is required", i+1)
+		}
+		if err := d.validateStep(i+1, &Step{Run: d.Verify[i].Run}); err != nil {
+			return fmt.Errorf("verify step %d: %w", i+1, err)
+		}
 	}
 	runCount := 0
 	for i := range d.Steps {
@@ -371,9 +403,9 @@ func Run(ctx context.Context, d *Definition, opts Options) (result *Result, err 
 	if tempRoot == "" {
 		tempRoot = os.TempDir()
 	}
-	workspace, err := os.MkdirTemp(tempRoot, "acap-bench-")
+	workspace, err := PrepareWorkspace(ctx, d, tempRoot)
 	if err != nil {
-		return result, fmt.Errorf("create temporary workspace: %w", err)
+		return result, err
 	}
 	defer func() {
 		result.WallDuration = time.Since(started)
@@ -385,14 +417,6 @@ func Run(ctx context.Context, d *Definition, opts Options) (result *Result, err 
 			err = fmt.Errorf("clean temporary workspace: %w", removeErr)
 		}
 	}()
-	if err = copyTree(d.fixtureDir, workspace); err != nil {
-		return result, fmt.Errorf("copy fixture: %w", err)
-	}
-	if d.Git.Init {
-		if err = initGit(ctx, workspace); err != nil {
-			return result, fmt.Errorf("initialize Git fixture: %w", err)
-		}
-	}
 	if opts.StoreRoot == "" {
 		return result, errors.New("persistent store root is required")
 	}
@@ -481,6 +505,52 @@ func Run(ctx context.Context, d *Definition, opts Options) (result *Result, err 
 		return result, fmt.Errorf("load benchmark session: %w", err)
 	}
 	return result, nil
+}
+
+// PrepareWorkspace creates a fresh isolated copy of a validated fixture.
+// The caller owns and must remove the returned directory.
+func PrepareWorkspace(ctx context.Context, d *Definition, tempRoot string) (workspace string, err error) {
+	if tempRoot == "" {
+		tempRoot = os.TempDir()
+	}
+	workspace, err = os.MkdirTemp(tempRoot, "acap-bench-")
+	if err != nil {
+		return "", fmt.Errorf("create temporary workspace: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			_ = os.RemoveAll(workspace)
+		}
+	}()
+	if err = copyTree(d.fixtureDir, workspace); err != nil {
+		return "", fmt.Errorf("copy fixture: %w", err)
+	}
+	if d.Git.Init {
+		if err = initGit(ctx, workspace); err != nil {
+			return "", fmt.Errorf("initialize Git fixture: %w", err)
+		}
+	}
+	return workspace, nil
+}
+
+// ResolveWorkspaceDir resolves a validated run cwd while rejecting symlinks
+// created by an agent that could escape the disposable workspace.
+func ResolveWorkspaceDir(workspace, rel string) (string, error) {
+	if rel == "" || filepath.Clean(rel) == "." {
+		return workspace, nil
+	}
+	dir, err := securePath(workspace, rel, true)
+	if err != nil {
+		return "", err
+	}
+	info, err := os.Stat(dir)
+	if err != nil {
+		return "", err
+	}
+	if !info.IsDir() {
+		return "", errors.New("cwd is not a directory")
+	}
+	return dir, nil
 }
 
 func stepType(s *Step) string {

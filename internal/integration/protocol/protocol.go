@@ -10,6 +10,9 @@ const EnvBypass = "ACAP_BYPASS"
 // EnvDepth prevents recursive interception.
 const EnvDepth = "ACAP_INTERCEPT_DEPTH"
 
+// EnvBenchmarkMode configures session behavior for coding-agent benchmarks.
+const EnvBenchmarkMode = "ACAP_BENCH_MODE"
+
 // ToolRequest is the JSON payload sent to "acap exec --protocol=json" on stdin.
 type ToolRequest struct {
 	Protocol   int      `json:"protocol"`

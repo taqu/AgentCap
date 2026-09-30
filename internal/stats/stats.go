@@ -17,6 +17,7 @@ type Stats struct {
 	FullFallbackCount int64 `json:"full_fallback_count,omitempty"`
 	StatelessBytes    int64 `json:"stateless_bytes,omitempty"`
 	StatefulBytes     int64 `json:"stateful_bytes,omitempty"`
+	ProcessingNS      int64 `json:"processing_ns,omitempty"`
 }
 
 // FormatBytes formats a byte count as a human-readable string (KB/MB/GB).

@@ -367,6 +367,11 @@ func (s *Store) RecordRaw(retBytes int) error {
 	})
 }
 
+// RecordProcessing records AgentCap-controlled command or retrieval processing.
+func (s *Store) RecordProcessing(ns int64) error {
+	return s.incrStats(map[string]int64{"processing_ns": ns})
+}
+
 // LoadStats returns accumulated statistics from the store.
 func (s *Store) LoadStats() (*stats.Stats, error) {
 	rows, err := s.db.QueryContext(context.Background(), `SELECT key, value FROM stats`)
@@ -397,6 +402,7 @@ func (s *Store) LoadStats() (*stats.Stats, error) {
 		FullFallbackCount: kv["full_count"],
 		StatelessBytes:    kv["stateless_bytes"],
 		StatefulBytes:     kv["stateful_bytes"],
+		ProcessingNS:      kv["processing_ns"],
 	}, nil
 }
 

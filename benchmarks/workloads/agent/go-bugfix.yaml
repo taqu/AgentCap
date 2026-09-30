@@ -1,0 +1,14 @@
+version: 1
+name: agent/go-bugfix
+fixture: ../../fixtures/agent-go-bugfix
+git:
+  init: true
+task: |
+  Fix the implementation bug that causes the existing Go test to fail.
+  Keep the public function signature unchanged and do not modify the test.
+timeout: 10m
+verify:
+  - run:
+      argv: ["go", "test", "./..."]
+      expect:
+        exit: 0

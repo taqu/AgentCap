@@ -4,13 +4,16 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
 const (
-	hookMarker       = "agentcap"
-	instructionsFile = ".codex/instructions.md"
-	configFile       = ".codex/config.toml"
+	hookMarker         = "agentcap"
+	instructionsFile   = ".codex/instructions.md"
+	agentsFile         = "AGENTS.md"
+	configFile         = ".codex/config.toml"
+	defaultHookCommand = "acap hook codex"
 )
 
 const instructionsContent = `
@@ -28,19 +31,15 @@ Compact results include an ID like ` + "`@acap 81bc2f`" + `. Use targeted drill-
 
 const instructionsMarker = "<!-- agentcap -->"
 
-const hookTOML = `
-# managed by agentcap
-[hooks]
-pre_tool_use = ["acap hook codex"]
-`
-
 // IsInstalled checks whether the AgentCap hook is present for Codex.
 func IsInstalled(projectRoot string) bool {
 	// Check instructions.md
-	instrPath := filepath.Join(projectRoot, instructionsFile)
-	if data, err := os.ReadFile(instrPath); err == nil {
-		if strings.Contains(string(data), hookMarker) {
-			return true
+	for _, name := range []string{instructionsFile, agentsFile} {
+		instrPath := filepath.Join(projectRoot, name)
+		if data, err := os.ReadFile(instrPath); err == nil {
+			if strings.Contains(string(data), hookMarker) {
+				return true
+			}
 		}
 	}
 	// Check config.toml
@@ -55,39 +54,52 @@ func IsInstalled(projectRoot string) bool {
 
 // Install adds AgentCap configuration for Codex CLI.
 func Install(projectRoot string, dryRun bool) error {
-	if IsInstalled(projectRoot) {
-		if dryRun {
-			fmt.Printf("[dry-run] AgentCap already installed for Codex in %s\n", projectRoot)
-		}
-		return nil
-	}
-
 	if dryRun {
 		fmt.Printf("[dry-run] Would install AgentCap for Codex in %s\n", projectRoot)
 		return nil
 	}
+	if err := InstallInstructions(projectRoot); err != nil {
+		return err
+	}
+	return InstallHook(projectRoot, defaultHookCommand)
+}
 
-	codexDir := filepath.Join(projectRoot, ".codex")
-	if err := os.MkdirAll(codexDir, 0o755); err != nil {
+// InstallInstructions exposes AgentCap recovery guidance to Codex.
+func InstallInstructions(projectRoot string) error {
+	if err := os.MkdirAll(filepath.Join(projectRoot, ".codex"), 0o755); err != nil {
 		return fmt.Errorf("codex: mkdir: %w", err)
 	}
-
-	// Write instructions.md
 	if err := appendIfMissing(filepath.Join(projectRoot, instructionsFile), instructionsMarker, instructionsContent); err != nil {
 		return fmt.Errorf("codex: instructions: %w", err)
 	}
+	if err := appendIfMissing(filepath.Join(projectRoot, agentsFile), instructionsMarker, instructionsContent); err != nil {
+		return fmt.Errorf("codex: AGENTS.md: %w", err)
+	}
+	return nil
+}
 
-	// Write config.toml
+// InstallHook installs command interception without implicitly adding recovery
+// instructions. hookCommand is quoted as a TOML string.
+func InstallHook(projectRoot, hookCommand string) error {
+	if hookCommand == "" {
+		hookCommand = defaultHookCommand
+	}
+	if err := os.MkdirAll(filepath.Join(projectRoot, ".codex"), 0o755); err != nil {
+		return fmt.Errorf("codex: mkdir: %w", err)
+	}
+	hookTOML := "\n# managed by agentcap\n[hooks]\npre_tool_use = [" + strconv.Quote(hookCommand) + "]\n"
 	if err := appendIfMissing(filepath.Join(projectRoot, configFile), hookMarker, hookTOML); err != nil {
 		return fmt.Errorf("codex: config: %w", err)
 	}
-
 	return nil
 }
 
 // Remove removes AgentCap-owned entries from Codex configuration.
 func Remove(projectRoot string) error {
 	if err := removeSection(filepath.Join(projectRoot, instructionsFile), instructionsMarker); err != nil {
+		return err
+	}
+	if err := removeSection(filepath.Join(projectRoot, agentsFile), instructionsMarker); err != nil {
 		return err
 	}
 	if err := removeSection(filepath.Join(projectRoot, configFile), hookMarker); err != nil {

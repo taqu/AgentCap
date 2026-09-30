@@ -265,7 +265,8 @@ func Run(ctx context.Context, req *protocol.ToolRequest) (*Outcome, error) {
 
 	// Record stats.
 	if st != nil && reduced != nil {
-		_ = st.RecordRun(reduced.RawBytes, reduced.RetBytes, len(output), presentation)
+		rawBytes := len(result.Stdout) + len(result.Stderr)
+		_ = st.RecordRun(rawBytes, len(statelessOutput), len(output), presentation)
 	}
 
 	resp := &protocol.ToolResponse{
@@ -276,12 +277,16 @@ func Run(ctx context.Context, req *protocol.ToolRequest) (*Outcome, error) {
 		Stderr:       string(result.Stderr),
 		Presentation: presentation,
 	}
+	processingDuration := time.Since(processStart)
+	if st != nil {
+		_ = st.RecordProcessing(processingDuration.Nanoseconds())
+	}
 	return &Outcome{
 		Response:              resp,
 		StatelessPresentation: statelessOutput,
 		Exec:                  result,
 		ReduceDuration:        reduceDuration,
-		ProcessingDuration:    time.Since(processStart),
+		ProcessingDuration:    processingDuration,
 	}, nil
 }
 

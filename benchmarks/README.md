@@ -106,11 +106,12 @@ They use Git and the Go standard toolchain only and require no network access.
 ## Stable result JSON
 
 `--json` writes one JSON object and no human headers or command output to
-stdout. Schema version 2 adds progressive-disclosure recovery measurements:
+stdout. Schema version 3 retains progressive-disclosure recovery measurements
+and adds optional coding-agent trial metadata:
 
 ```json
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "workload": "recovery/show-and-raw",
   "commands": 1,
   "raw_bytes": 221,
@@ -137,3 +138,68 @@ not general workload-runner overhead.
 The result schema version is independent of workload definition version 1 and
 the internal store schema. Consumers should select their interpretation using
 `schema_version`; later schema versions may add or change fields.
+
+## Coding-agent workloads
+
+Coding-agent workloads use the same versioned fixture format, replacing
+deterministic `steps` with task text and benchmark-only verification:
+
+```yaml
+version: 1
+name: agent/go-bugfix
+fixture: ../../fixtures/agent-go-bugfix
+git:
+  init: true
+task: |
+  Fix the implementation bug that causes the existing test to fail.
+  Do not modify the test.
+timeout: 10m
+verify:
+  - run:
+      argv: ["go", "test", "./..."]
+      expect: {exit: 0}
+```
+
+Run one trial with an explicit agent and mode:
+
+```text
+acap bench agent --workload benchmarks/workloads/agent/go-bugfix.yaml --agent codex --mode integrated
+acap bench agent --workload benchmarks/workloads/agent/go-bugfix.yaml --agent codex --mode disabled --json
+```
+
+The initial real adapter is Codex CLI. It uses non-interactive `codex exec`, an
+ephemeral agent session, workspace-write sandboxing, automatic approval review,
+captured JSONL logs, and an explicit timeout. Codex authentication must already
+be configured. `--model` optionally selects a model; otherwise the installed
+Codex default is used.
+
+The four modes are:
+
+- `disabled`: no AgentCap project hook. Command count and visible bytes come
+  from Codex command-execution events, and the raw baseline equals visible
+  command output.
+- `stateless`: the AgentCap hook reduces each intercepted command without a
+  session baseline.
+- `stateful`: the hook uses the agent session for full/delta/unchanged behavior,
+  but no AgentCap recovery guidance is added to the task workspace.
+- `integrated`: stateful interception plus stable AgentCap `show`/`raw`
+  instructions in the workspace. The agent decides whether to recover output.
+
+Enabled-mode metrics are isolated store-stat deltas produced by the normal
+AgentCap engine and retrieval paths. Disabled metrics come from agent JSONL
+command events. The benchmark measures AgentCap-controlled command output; it
+does not claim to measure model reasoning, hidden prompts, provider token use,
+or native non-command tool payloads.
+
+After the agent terminates, every `verify.run` executes directly through the
+plain command executor. Its output determines `task_success` but is not included
+in agent-visible bytes or command counts. A failed verification is a valid trial
+with `task_success: false`; failure to start or configure the agent is an
+infrastructure error. Timeout and non-zero agent exit are recorded as
+`execution_status` values rather than fabricated successful results.
+
+Schema version 3 agent results additionally expose `agent`, `mode`,
+`task_success`, `execution_status`, `agent_exit_code`, and `wall_time_ns`.
+Complete agent wall time is separate from `processing_ns`, which records only
+AgentCap command/retrieval processing. Each invocation is one trial; repetition,
+statistics, comparisons, and regression policy remain out of scope.

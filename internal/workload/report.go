@@ -12,6 +12,17 @@ import (
 func WriteHuman(w io.Writer, result *BenchmarkResult, verbose bool) error {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "Benchmark Workload: %s\n\n", result.Workload)
+	if result.Agent != "" {
+		fmt.Fprintf(&sb, "agent: %s\nmode: %s\n", result.Agent, result.Mode)
+		if result.TaskSuccess != nil {
+			success := "no"
+			if *result.TaskSuccess {
+				success = "yes"
+			}
+			fmt.Fprintf(&sb, "task success: %s\n", success)
+		}
+		fmt.Fprintf(&sb, "execution: %s\n\n", result.ExecutionStatus)
+	}
 	run := result.presentation
 	if run != nil && run.SessionID != "" {
 		fmt.Fprintf(&sb, "session: %s\n\n", run.SessionID)
@@ -29,6 +40,9 @@ func WriteHuman(w io.Writer, result *BenchmarkResult, verbose bool) error {
 		a := run.Aggregate
 		fmt.Fprintf(&sb, "\npresentations:\n  full:                  %d\n  delta:                 %d\n  unchanged:             %d\n", a.FullCount, a.DeltaCount, a.UnchangedCount)
 		fmt.Fprintf(&sb, "\ntime:\n  command execution:     %s\n  AgentCap processing:   %s (reduce %s, recovery %s)\n  workload wall clock:   %s\n", duration(a.ExecutionDuration), duration(time.Duration(result.ProcessingNS)), duration(a.ReduceDuration), duration(run.RecoveryProcessingDuration), duration(run.WallDuration))
+	}
+	if result.Agent != "" {
+		fmt.Fprintf(&sb, "\ntime:\n  agent wall clock:      %s\n  AgentCap processing:   %s\n", duration(time.Duration(result.WallTimeNS)), duration(time.Duration(result.ProcessingNS)))
 	}
 	if verbose && run != nil && len(run.Steps) > 0 {
 		sb.WriteString("\nsteps:\n")
