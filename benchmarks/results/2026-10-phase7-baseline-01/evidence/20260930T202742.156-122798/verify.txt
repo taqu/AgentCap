@@ -1,0 +1,13 @@
+$ [go test ./...] (exit 1, expected 0)
+--- FAIL: TestCreateConflict (0.00s)
+    api_test.go:39: conflict: got 400 want 409
+FAIL
+FAIL	inventory/api	0.003s
+?   	inventory/cmd/inventory	[no test files]
+ok  	inventory/lexer	0.003s
+ok  	inventory/query	0.002s
+ok  	inventory/report	0.001s
+ok  	inventory/store	0.002s
+ok  	inventory/util	0.002s
+FAIL
+

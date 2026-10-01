@@ -1,0 +1,74 @@
+diff --git a/api/handlers.go b/api/handlers.go
+index 56c4e05..5e6d647 100644
+--- a/api/handlers.go
++++ b/api/handlers.go
+@@ -37,7 +37,7 @@ func (s *Server) getItem(w http.ResponseWriter, r *http.Request) {
+ 		writeError(w, CodeQuota, "quota exceeded")
+ 		return
+ 	}
+-	it, err := s.Store.Get(r.PathValue("sku"))
++	it, err := s.Store.Get(r.Context(), r.PathValue("sku"))
+ 	if errors.Is(err, store.ErrNotFound) {
+ 		writeError(w, CodeNotFound, "no such item")
+ 		return
+@@ -55,7 +55,7 @@ func (s *Server) createItem(w http.ResponseWriter, r *http.Request) {
+ 		writeError(w, CodeBadRequest, "invalid item")
+ 		return
+ 	}
+-	if _, err := s.Store.Get(it.SKU); err == nil {
++	if _, err := s.Store.Get(r.Context(), it.SKU); err == nil {
+ 		writeError(w, CodeConflict, "sku exists")
+ 		return
+ 	}
+@@ -79,7 +79,7 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request) {
+ }
+ 
+ func (s *Server) adjust(w http.ResponseWriter, r *http.Request) {
+-	it, err := s.Store.Get(r.PathValue("sku"))
++	it, err := s.Store.Get(r.Context(), r.PathValue("sku"))
+ 	if err != nil {
+ 		writeError(w, CodeNotFound, "no such item")
+ 		return
+diff --git a/cmd/inventory/main.go b/cmd/inventory/main.go
+index b136e59..400d5d2 100644
+--- a/cmd/inventory/main.go
++++ b/cmd/inventory/main.go
+@@ -1,6 +1,7 @@
+ package main
+ 
+ import (
++	"context"
+ 	"flag"
+ 	"fmt"
+ 	"log"
+@@ -19,7 +20,7 @@ func main() {
+ 	st := store.New()
+ 	st.Put(store.Item{SKU: "B-1", Name: "bolt", Qty: 12, Price: 0.25})
+ 	if *show != "" {
+-		it, err := st.Get(*show)
++		it, err := st.Get(context.Background(), *show)
+ 		if err != nil {
+ 			fmt.Fprintln(os.Stderr, err)
+ 			os.Exit(1)
+diff --git a/report/report.go b/report/report.go
+index 9c7a782..82d6b76 100644
+--- a/report/report.go
++++ b/report/report.go
+@@ -32,7 +32,7 @@ func table(items []store.Item) string {
+ func Lookup(ctx context.Context, s *store.Store, skus []string) string {
+ 	var items []store.Item
+ 	for _, sku := range skus {
+-		if it, err := s.Get(sku); err == nil {
++		if it, err := s.Get(ctx, sku); err == nil {
+ 			items = append(items, it)
+ 		}
+ 	}
+@@ -43,7 +43,7 @@ func Lookup(ctx context.Context, s *store.Store, skus []string) string {
+ func LowStock(ctx context.Context, s *store.Store, threshold int) []string {
+ 	var out []string
+ 	for _, it := range s.List() {
+-		cur, err := s.Get(it.SKU)
++		cur, err := s.Get(ctx, it.SKU)
+ 		if err == nil && cur.Qty <= threshold {
+ 			out = append(out, fmt.Sprintf("%s (%d left, off by %d)", cur.SKU, cur.Qty, util.Abs(threshold-cur.Qty)))
+ 		}

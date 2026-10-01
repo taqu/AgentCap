@@ -1,0 +1,13 @@
+diff --git a/errcatalog/warehouse.go b/errcatalog/warehouse.go
+index e8e9753..c469e4f 100644
+--- a/errcatalog/warehouse.go
++++ b/errcatalog/warehouse.go
+@@ -8,7 +8,7 @@ func init() {
+ 	"warehouse.invalid": api.CodeBadRequest,
+ 	"warehouse.locked": api.CodeConflict,
+ 	"warehouse.expired": api.CodeBadRequest,
+-	"warehouse.limit": api.CodeInternal,
++	"warehouse.limit": api.CodeQuota,
+ 	"warehouse.timeout": api.CodeInternal,
+ 	"warehouse.denied": api.CodeBadRequest,
+ 	"warehouse.stale": api.CodeConflict,

@@ -1,0 +1,15 @@
+$ [go build ./...] (exit 0, expected 0)
+
+$ [go test ./...] (exit 0, expected 0)
+ok  	inventory/api	0.003s
+?   	inventory/cmd/inventory	[no test files]
+ok  	inventory/lexer	0.004s
+ok  	inventory/query	0.002s
+ok  	inventory/report	0.003s
+ok  	inventory/store	0.004s
+ok  	inventory/util	0.002s
+
+$ [sh -c ! grep -rnE 'util\.(Clamp|Abs)\b' --include=*.go . && ! grep -nE '^func (Clamp|Abs)\(' util/*.go] (exit 1, expected 0)
+./report/report.go:48:			out = append(out, fmt.Sprintf("%s (%d left, off by %d)", cur.SKU, cur.Qty, util.Abs(threshold-cur.Qty)))
+./api/handlers.go:92:	it.Qty = util.Clamp(it.Qty+delta, 0, 1_000_000)
+

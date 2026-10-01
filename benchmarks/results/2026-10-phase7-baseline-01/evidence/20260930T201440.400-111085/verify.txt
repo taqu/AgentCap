@@ -1,0 +1,22 @@
+$ [sh -c make -s clean >/dev/null 2>&1; make -s && make -s test] (exit 2, expected 0)
+In file included from src/shapes.cpp:2:
+include/geometry.hpp:29:12: error: ‘double geo::Circle::area()’ marked ‘override’, but does not override
+   29 |     double area() override;
+      |            ^~~~
+include/geometry.hpp:30:12: error: ‘double geo::Circle::perimeter()’ marked ‘override’, but does not override
+   30 |     double perimeter() override;
+      |            ^~~~~~~~~
+include/geometry.hpp:41:12: error: ‘double geo::Rect::area()’ marked ‘override’, but does not override
+   41 |     double area() override;
+      |            ^~~~
+include/geometry.hpp:42:12: error: ‘double geo::Rect::perimeter()’ marked ‘override’, but does not override
+   42 |     double perimeter() override;
+      |            ^~~~~~~~~
+include/geometry.hpp:52:12: error: ‘double geo::Triangle::area()’ marked ‘override’, but does not override
+   52 |     double area() override;
+      |            ^~~~
+include/geometry.hpp:53:12: error: ‘double geo::Triangle::perimeter()’ marked ‘override’, but does not override
+   53 |     double perimeter() override;
+      |            ^~~~~~~~~
+make: *** [Makefile:9: src/shapes.o] Error 1
+

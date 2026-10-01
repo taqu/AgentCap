@@ -1,0 +1,28 @@
+$ [go build ./...] (exit 0, expected 0)
+
+$ [go test ./...] (exit 0, expected 0)
+ok  	inventory/api	(cached)
+?   	inventory/cmd/inventory	[no test files]
+ok  	inventory/lexer	(cached)
+ok  	inventory/mathx	(cached)
+ok  	inventory/query	(cached)
+ok  	inventory/report	(cached)
+ok  	inventory/store	(cached)
+ok  	inventory/util	(cached)
+
+$ [sh -c ! grep -rnE 'util\.(Clamp|Abs)\b' --include=*.go . && ! grep -nE '^func (Clamp|Abs)\(' util/*.go] (exit 0, expected 0)
+
+$ [sh -c cat > mathx/zz_hidden_test.go <<'ACAP_HIDDEN'
+package mathx
+
+import "testing"
+
+func TestHiddenMathx(t *testing.T) {
+	if Clamp(-5, 0, 9) != 0 || Clamp(50, 0, 9) != 9 || Clamp(4, 0, 9) != 4 || Abs(-7) != 7 || Abs(3) != 3 {
+		t.Fatal("mathx behavior changed")
+	}
+}
+ACAP_HIDDEN
+go test ./mathx/; rc=$?; rm -f mathx/zz_hidden_test.go; exit $rc] (exit 0, expected 0)
+ok  	inventory/mathx	0.003s
+

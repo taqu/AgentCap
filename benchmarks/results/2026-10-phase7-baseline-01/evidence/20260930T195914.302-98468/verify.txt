@@ -1,0 +1,122 @@
+$ [sh -c make -s clean >/dev/null 2>&1; make -s test] (exit 2, expected 0)
+ok   ringbuf/empty pop
+ok   ringbuf/push 0
+ok   ringbuf/push 1
+ok   ringbuf/push 2
+ok   ringbuf/push 3
+ok   ringbuf/full rejects
+ok   ringbuf/wrap round 00 pop
+ok   ringbuf/wrap round 00 push
+ok   ringbuf/wrap round 00 peek oldest
+FAIL ringbuf/wrap round 00 peek newest  (tests/test_ringbuf.c:23: rb_peek(&rb, 3, &got) && got == (round + 4) * 10)
+ok   ringbuf/wrap round 01 pop
+ok   ringbuf/wrap round 01 push
+ok   ringbuf/wrap round 01 peek oldest
+FAIL ringbuf/wrap round 01 peek newest  (tests/test_ringbuf.c:23: rb_peek(&rb, 3, &got) && got == (round + 4) * 10)
+ok   ringbuf/wrap round 02 pop
+ok   ringbuf/wrap round 02 push
+FAIL ringbuf/wrap round 02 peek oldest  (tests/test_ringbuf.c:21: rb_peek(&rb, 0, &got) && got == (round + 1) * 10)
+FAIL ringbuf/wrap round 02 peek newest  (tests/test_ringbuf.c:23: rb_peek(&rb, 3, &got) && got == (round + 4) * 10)
+FAIL ringbuf/wrap round 03 pop  (tests/test_ringbuf.c:17: rb_pop(&rb, &got) && got == round * 10)
+ok   ringbuf/wrap round 03 push
+FAIL ringbuf/wrap round 03 peek oldest  (tests/test_ringbuf.c:21: rb_peek(&rb, 0, &got) && got == (round + 1) * 10)
+ok   ringbuf/wrap round 03 peek newest
+FAIL ringbuf/wrap round 04 pop  (tests/test_ringbuf.c:17: rb_pop(&rb, &got) && got == round * 10)
+ok   ringbuf/wrap round 04 push
+FAIL ringbuf/wrap round 04 peek oldest  (tests/test_ringbuf.c:21: rb_peek(&rb, 0, &got) && got == (round + 1) * 10)
+FAIL ringbuf/wrap round 04 peek newest  (tests/test_ringbuf.c:23: rb_peek(&rb, 3, &got) && got == (round + 4) * 10)
+FAIL ringbuf/wrap round 05 pop  (tests/test_ringbuf.c:17: rb_pop(&rb, &got) && got == round * 10)
+ok   ringbuf/wrap round 05 push
+FAIL ringbuf/wrap round 05 peek oldest  (tests/test_ringbuf.c:21: rb_peek(&rb, 0, &got) && got == (round + 1) * 10)
+FAIL ringbuf/wrap round 05 peek newest  (tests/test_ringbuf.c:23: rb_peek(&rb, 3, &got) && got == (round + 4) * 10)
+FAIL ringbuf/wrap round 06 pop  (tests/test_ringbuf.c:17: rb_pop(&rb, &got) && got == round * 10)
+ok   ringbuf/wrap round 06 push
+FAIL ringbuf/wrap round 06 peek oldest  (tests/test_ringbuf.c:21: rb_peek(&rb, 0, &got) && got == (round + 1) * 10)
+FAIL ringbuf/wrap round 06 peek newest  (tests/test_ringbuf.c:23: rb_peek(&rb, 3, &got) && got == (round + 4) * 10)
+FAIL ringbuf/wrap round 07 pop  (tests/test_ringbuf.c:17: rb_pop(&rb, &got) && got == round * 10)
+ok   ringbuf/wrap round 07 push
+FAIL ringbuf/wrap round 07 peek oldest  (tests/test_ringbuf.c:21: rb_peek(&rb, 0, &got) && got == (round + 1) * 10)
+ok   ringbuf/wrap round 07 peek newest
+FAIL ringbuf/wrap round 08 pop  (tests/test_ringbuf.c:17: rb_pop(&rb, &got) && got == round * 10)
+ok   ringbuf/wrap round 08 push
+FAIL ringbuf/wrap round 08 peek oldest  (tests/test_ringbuf.c:21: rb_peek(&rb, 0, &got) && got == (round + 1) * 10)
+FAIL ringbuf/wrap round 08 peek newest  (tests/test_ringbuf.c:23: rb_peek(&rb, 3, &got) && got == (round + 4) * 10)
+FAIL ringbuf/wrap round 09 pop  (tests/test_ringbuf.c:17: rb_pop(&rb, &got) && got == round * 10)
+ok   ringbuf/wrap round 09 push
+FAIL ringbuf/wrap round 09 peek oldest  (tests/test_ringbuf.c:21: rb_peek(&rb, 0, &got) && got == (round + 1) * 10)
+FAIL ringbuf/wrap round 09 peek newest  (tests/test_ringbuf.c:23: rb_peek(&rb, 3, &got) && got == (round + 4) * 10)
+FAIL ringbuf/wrap round 10 pop  (tests/test_ringbuf.c:17: rb_pop(&rb, &got) && got == round * 10)
+ok   ringbuf/wrap round 10 push
+FAIL ringbuf/wrap round 10 peek oldest  (tests/test_ringbuf.c:21: rb_peek(&rb, 0, &got) && got == (round + 1) * 10)
+FAIL ringbuf/wrap round 10 peek newest  (tests/test_ringbuf.c:23: rb_peek(&rb, 3, &got) && got == (round + 4) * 10)
+FAIL ringbuf/wrap round 11 pop  (tests/test_ringbuf.c:17: rb_pop(&rb, &got) && got == round * 10)
+ok   ringbuf/wrap round 11 push
+FAIL ringbuf/wrap round 11 peek oldest  (tests/test_ringbuf.c:21: rb_peek(&rb, 0, &got) && got == (round + 1) * 10)
+ok   ringbuf/wrap round 11 peek newest
+ok   ringbuf/len
+ok   ringbuf/peek out of range
+ok   strbuf/append 00
+ok   strbuf/append 01
+ok   strbuf/append 02
+ok   strbuf/append 03
+ok   strbuf/append 04
+ok   strbuf/append 05
+ok   strbuf/append 06
+ok   strbuf/append 07
+ok   strbuf/append 08
+ok   strbuf/append 09
+ok   strbuf/append 10
+ok   strbuf/append 11
+ok   strbuf/append 12
+ok   strbuf/append 13
+ok   strbuf/append 14
+ok   strbuf/append 15
+ok   strbuf/append 16
+ok   strbuf/append 17
+ok   strbuf/append 18
+ok   strbuf/append 19
+ok   strbuf/content
+ok   hashmap/get key-0
+ok   hashmap/get key-1
+ok   hashmap/get key-2
+ok   hashmap/get key-3
+ok   hashmap/get key-4
+ok   hashmap/get key-5
+ok   hashmap/get key-6
+ok   hashmap/get key-7
+ok   hashmap/get key-8
+ok   hashmap/get key-9
+ok   hashmap/get key-10
+ok   hashmap/get key-11
+ok   hashmap/get key-12
+ok   hashmap/get key-13
+ok   hashmap/get key-14
+ok   hashmap/get key-15
+ok   hashmap/get key-16
+ok   hashmap/get key-17
+ok   hashmap/get key-18
+ok   hashmap/get key-19
+ok   hashmap/get key-20
+ok   hashmap/get key-21
+ok   hashmap/get key-22
+ok   hashmap/get key-23
+ok   hashmap/get key-24
+ok   hashmap/get key-25
+ok   hashmap/get key-26
+ok   hashmap/get key-27
+ok   hashmap/get key-28
+ok   hashmap/get key-29
+ok   hashmap/get key-30
+ok   hashmap/get key-31
+ok   hashmap/get key-32
+ok   hashmap/get key-33
+ok   hashmap/get key-34
+ok   hashmap/get key-35
+ok   hashmap/get key-36
+ok   hashmap/get key-37
+ok   hashmap/get key-38
+ok   hashmap/get key-39
+ok   hashmap/missing
+118 checks, 28 failures
+make: *** [Makefile:18: test] Error 1
+

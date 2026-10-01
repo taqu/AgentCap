@@ -1,0 +1,15 @@
+$ [go test ./...] (exit 0, expected 0)
+ok  	inventory/api	0.004s
+?   	inventory/cmd/inventory	[no test files]
+ok  	inventory/lexer	0.003s
+ok  	inventory/query	0.003s
+ok  	inventory/report	0.005s
+ok  	inventory/store	0.003s
+ok  	inventory/util	0.003s
+
+$ [git diff --quiet HEAD -- *_test.go] (exit 0, expected 0)
+
+$ [grep -q statusByCode api/errors.go] (exit 0, expected 0)
+
+$ [grep -q respondError api/handlers.go] (exit 0, expected 0)
+

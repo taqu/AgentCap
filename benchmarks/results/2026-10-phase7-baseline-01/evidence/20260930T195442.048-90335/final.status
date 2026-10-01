@@ -1,0 +1,7 @@
+ M api/handlers.go
+RM util/mathx.go -> mathx/mathx.go
+ M report/report.go
+ M util/strings.go
+ M util/util_test.go
+?? .claude/
+?? mathx/mathx_test.go

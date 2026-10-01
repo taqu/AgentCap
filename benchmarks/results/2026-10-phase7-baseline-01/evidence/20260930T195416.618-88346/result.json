@@ -1,0 +1,120 @@
+{
+  "schema_version": 4,
+  "workload": "phase7/go-search-large",
+  "commands": 6,
+  "raw_bytes": 7332,
+  "stateless_bytes": 7332,
+  "stateful_bytes": 7332,
+  "initial_visible_bytes": 7332,
+  "show_bytes": 0,
+  "raw_retrieval_bytes": 0,
+  "total_visible_bytes": 7332,
+  "show_count": 0,
+  "raw_retrieval_count": 0,
+  "processing_ns": 0,
+  "agent": "claude",
+  "mode": "disabled",
+  "task_success": true,
+  "execution_status": "completed",
+  "agent_exit_code": 0,
+  "wall_time_ns": 15516907469,
+  "workflow": {
+    "run_id": "20260930T195416.618-88346",
+    "batch": "2026-10-phase7-baseline-01",
+    "started_at": "2026-09-30T19:54:16Z",
+    "platform": "linux/amd64",
+    "category": "search",
+    "language": "go",
+    "agent_version": "2.1.286",
+    "model": "claude-sonnet-5-5",
+    "agentcap_version": "2f2c593b4639+dirty",
+    "adapter_version": "1",
+    "outcome": "PASS",
+    "shell_commands": 6,
+    "repeated_commands": 0,
+    "shell_visible_bytes": 7332,
+    "shell_visible_tokens_est": 1833,
+    "show_calls": 0,
+    "show_visible_bytes": 0,
+    "raw_calls": 0,
+    "raw_visible_bytes": 0,
+    "immediate_raw_calls": 0,
+    "acap_results": 0,
+    "instruction_bytes": 0,
+    "total_context_cost_bytes": 7332,
+    "total_context_cost_tokens_est": 1833,
+    "native_tool_calls": 0,
+    "native_tool_bytes": 0,
+    "family_bytes": {
+      "file-read": 1509,
+      "generic": 1370,
+      "search": 4241,
+      "test": 212
+    },
+    "family_count": {
+      "file-read": 2,
+      "generic": 1,
+      "search": 2,
+      "test": 1
+    },
+    "commands_intercepted": 0,
+    "commands_bypassed": 6,
+    "adapter_failures": 0,
+    "adapter_latency_ns": 0,
+    "core_latency_ns": 0,
+    "bypass_reasons": {
+      "explicit-bypass": 6
+    },
+    "full_results": 0,
+    "delta_results": 0,
+    "unchanged_results": 0,
+    "host_input_tokens": 14,
+    "host_cache_read_tokens": 102086,
+    "host_cache_write_tokens": 9767,
+    "host_output_tokens": 867,
+    "trace": [
+      {
+        "i": 1,
+        "tool": "shell",
+        "family": "search",
+        "command": "grep -rniE \"429|TooManyRequests|capacity|StatusInternalServerError\" --include=*.go . | head -40",
+        "bytes": 108
+      },
+      {
+        "i": 2,
+        "tool": "shell",
+        "family": "file-read",
+        "command": "cat api/errors.go; grep -rn \"Err[A-Za-z]* *=\" --include=*.go . | head -30",
+        "bytes": 754
+      },
+      {
+        "i": 3,
+        "tool": "shell",
+        "family": "search",
+        "command": "grep -rniE \"warehouse|Code[A-Z][a-z]+\" --include=*.go . | grep -v \"^./api/errors.go\" | head -40; ls -R | head -30",
+        "bytes": 4133
+      },
+      {
+        "i": 4,
+        "tool": "shell",
+        "family": "generic",
+        "command": "cd errcatalog; ls; grep -rn \"warehouse\" . ; cat catalog.go | head -80; grep -n \"HTTPStatus\\|errcatalog\" ../api/*.go",
+        "bytes": 1370
+      },
+      {
+        "i": 5,
+        "tool": "shell",
+        "family": "file-read",
+        "command": "cd /tmp/agentcap-agent-trial-1280408065/acap-bench-3637988970 \u0026\u0026 sed -i 's/\"warehouse.limit\": api.CodeInternal/\"warehouse.limit\": api.CodeQuota/' errcatalog/warehouse.go \u0026\u0026 gofmt -l errcatalog; go test ./... 2\u003e\u00261 | tail",
+        "bytes": 755
+      },
+      {
+        "i": 6,
+        "tool": "shell",
+        "family": "test",
+        "command": "go test ./... 2\u003e\u00261 | grep -v \"no test files\"",
+        "bytes": 212
+      }
+    ]
+  }
+}

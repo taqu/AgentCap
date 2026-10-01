@@ -1,0 +1,133 @@
+diff --git a/api/errors.go b/api/errors.go
+index 6777464..c80c1c1 100644
+--- a/api/errors.go
++++ b/api/errors.go
+@@ -14,17 +14,20 @@ const (
+ 	CodeBadRequest Code = "bad_request"
+ )
+ 
++// statusByCode is the single source of truth for code -> HTTP status.
++var statusByCode = map[Code]int{
++	CodeNotFound:   http.StatusNotFound,
++	CodeBadQuery:   http.StatusBadRequest,
++	CodeBadRequest: http.StatusBadRequest,
++	CodeConflict:   http.StatusBadRequest,
++	CodeQuota:      http.StatusTooManyRequests,
++	CodeInternal:   http.StatusInternalServerError,
++}
++
+ // HTTPStatus maps an API error code to its HTTP status.
+ func HTTPStatus(c Code) int {
+-	switch c {
+-	case CodeNotFound:
+-		return http.StatusNotFound
+-	case CodeBadQuery, CodeBadRequest:
+-		return http.StatusBadRequest
+-	case CodeConflict:
+-		return http.StatusConflict
+-	case CodeQuota:
+-		return http.StatusTooManyRequests
++	if s, ok := statusByCode[c]; ok {
++		return s
+ 	}
+ 	return http.StatusInternalServerError
+ }
+diff --git a/api/handlers.go b/api/handlers.go
+index 5e6d647..eedecb6 100644
+--- a/api/handlers.go
++++ b/api/handlers.go
+@@ -26,7 +26,8 @@ func (s *Server) Routes() *http.ServeMux {
+ 	return mux
+ }
+ 
+-func writeError(w http.ResponseWriter, c Code, msg string) {
++// respondError writes a JSON error body with the mapped status.
++func respondError(w http.ResponseWriter, c Code, msg string) {
+ 	w.Header().Set("Content-Type", "application/json")
+ 	w.WriteHeader(HTTPStatus(c))
+ 	json.NewEncoder(w).Encode(map[string]string{"code": string(c), "error": msg})
+@@ -34,16 +35,16 @@ func writeError(w http.ResponseWriter, c Code, msg string) {
+ 
+ func (s *Server) getItem(w http.ResponseWriter, r *http.Request) {
+ 	if s.Quota != nil && !s.Quota(r) {
+-		writeError(w, CodeQuota, "quota exceeded")
++		respondError(w, CodeQuota, "quota exceeded")
+ 		return
+ 	}
+ 	it, err := s.Store.Get(r.Context(), r.PathValue("sku"))
+ 	if errors.Is(err, store.ErrNotFound) {
+-		writeError(w, CodeNotFound, "no such item")
++		respondError(w, CodeNotFound, "no such item")
+ 		return
+ 	}
+ 	if err != nil {
+-		writeError(w, CodeInternal, err.Error())
++		respondError(w, CodeInternal, err.Error())
+ 		return
+ 	}
+ 	json.NewEncoder(w).Encode(it)
+@@ -52,11 +53,11 @@ func (s *Server) getItem(w http.ResponseWriter, r *http.Request) {
+ func (s *Server) createItem(w http.ResponseWriter, r *http.Request) {
+ 	var it store.Item
+ 	if err := json.NewDecoder(r.Body).Decode(&it); err != nil || it.SKU == "" {
+-		writeError(w, CodeBadRequest, "invalid item")
++		respondError(w, CodeBadRequest, "invalid item")
+ 		return
+ 	}
+ 	if _, err := s.Store.Get(r.Context(), it.SKU); err == nil {
+-		writeError(w, CodeConflict, "sku exists")
++		respondError(w, CodeConflict, "sku exists")
+ 		return
+ 	}
+ 	s.Store.Put(it)
+@@ -66,7 +67,7 @@ func (s *Server) createItem(w http.ResponseWriter, r *http.Request) {
+ func (s *Server) search(w http.ResponseWriter, r *http.Request) {
+ 	e, err := query.Parse(r.URL.Query().Get("q"))
+ 	if err != nil {
+-		writeError(w, CodeBadQuery, err.Error())
++		respondError(w, CodeBadQuery, err.Error())
+ 		return
+ 	}
+ 	var out []store.Item
+@@ -81,12 +82,12 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request) {
+ func (s *Server) adjust(w http.ResponseWriter, r *http.Request) {
+ 	it, err := s.Store.Get(r.Context(), r.PathValue("sku"))
+ 	if err != nil {
+-		writeError(w, CodeNotFound, "no such item")
++		respondError(w, CodeNotFound, "no such item")
+ 		return
+ 	}
+ 	delta, err := strconv.Atoi(r.URL.Query().Get("by"))
+ 	if err != nil {
+-		writeError(w, CodeBadRequest, "by must be an integer")
++		respondError(w, CodeBadRequest, "by must be an integer")
+ 		return
+ 	}
+ 	it.Qty = util.Clamp(it.Qty+delta, 0, 1_000_000)
+diff --git a/report/report.go b/report/report.go
+index 82d6b76..3c73ea1 100644
+--- a/report/report.go
++++ b/report/report.go
+@@ -10,7 +10,7 @@ import (
+ 	"inventory/util"
+ )
+ 
+-// Render formats items. Supported formats: "table".
++// Render formats items for display. Supported formats: "table" (default).
+ func Render(items []store.Item, format string) (string, error) {
+ 	switch format {
+ 	case "table", "":
+diff --git a/util/strings.go b/util/strings.go
+index 015b7b0..9aa9f07 100644
+--- a/util/strings.go
++++ b/util/strings.go
+@@ -10,7 +10,8 @@ func PadRight(s string, w int) string {
+ 	return s + strings.Repeat(" ", w-len(s))
+ }
+ 
+-// Truncate shortens s to at most n bytes, adding "..." when cut.
++// Truncate shortens s to at most n bytes. When s is cut, the result ends
++// with "..." and is exactly n bytes long.
+ func Truncate(s string, n int) string {
+ 	if len(s) <= n {
+ 		return s

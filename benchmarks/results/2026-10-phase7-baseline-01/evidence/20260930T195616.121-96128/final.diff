@@ -1,0 +1,13 @@
+diff --git a/src/ringbuf.c b/src/ringbuf.c
+index efddbfa..6be1769 100644
+--- a/src/ringbuf.c
++++ b/src/ringbuf.c
+@@ -13,7 +13,7 @@ void rb_free(ringbuf *rb) { free(rb->data); rb->data = NULL; }
+ 
+ bool rb_push(ringbuf *rb, int v) {
+     if (rb->len == rb->cap) return false;
+-    rb->data[rb->len % rb->cap] = v;
++    rb->data[(rb->head + rb->len) % rb->cap] = v;
+     rb->len++;
+     return true;
+ }

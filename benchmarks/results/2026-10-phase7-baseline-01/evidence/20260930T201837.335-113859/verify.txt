@@ -1,0 +1,32 @@
+$ [go test ./...] (exit 1, expected 0)
+ok  	inventory/api	0.003s
+?   	inventory/cmd/inventory	[no test files]
+--- FAIL: TestTokenize (0.00s)
+    --- FAIL: TestTokenize/escaped_backslash (0.00s)
+        lexer_test.go:58: Tokenize("\"C:\\\\temp\"")
+             got: ["String:C:\\emp"]
+            want: ["String:C:\\temp"]
+    --- FAIL: TestTokenize/backslash_then_quote (0.00s)
+        lexer_test.go:55: Tokenize("\"x\\\\\"") error: pos 0: unterminated string
+    --- FAIL: TestTokenize/two_strings (0.00s)
+        lexer_test.go:55: Tokenize("\"a\\\\\" \"b\"") error: pos 8: unterminated string
+    --- FAIL: TestTokenize/mixed_escapes (0.00s)
+        lexer_test.go:58: Tokenize("\"q\\\"\\\\\\n\"")
+             got: ["String:q\"\\n"]
+            want: ["String:q\"\\\n"]
+FAIL
+FAIL	inventory/lexer	0.003s
+--- FAIL: TestParse (0.00s)
+    --- FAIL: TestParse/escaped_backslash (0.00s)
+        parser_test.go:25: Parse("path = \"a\\\\b\"")
+             got: (path = "a\\")
+            want: (path = "a\\b")
+    --- FAIL: TestParse/backslash_end (0.00s)
+        parser_test.go:22: Parse("path = \"dir\\\\\" and qty = 1"): pos 7: unterminated string
+FAIL
+FAIL	inventory/query	0.002s
+ok  	inventory/report	0.003s
+ok  	inventory/store	0.002s
+ok  	inventory/util	0.002s
+FAIL
+
