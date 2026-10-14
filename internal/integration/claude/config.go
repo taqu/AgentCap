@@ -155,6 +155,87 @@ func IsInstalled(projectRoot string) bool {
 func Install(projectRoot string, dryRun bool) error { return update(projectRoot, false, dryRun) }
 func Remove(projectRoot string) error               { return update(projectRoot, true, false) }
 
+const claudeFile = "CLAUDE.md"
+const instructionsMarker = "<!-- agentcap -->"
+const instructionsContent = `
+<!-- agentcap -->
+## AgentCap
+
+AgentCap is active in this project. Shell command output is automatically compressed.
+
+Compact results include an ID like ` + "`@acap 81bc2f`" + `. Use targeted drill-down:
+
+- ` + "`acap show <id>`" + ` — full stored capsule
+- ` + "`acap show <id> --errors`" + ` — build errors only
+- ` + "`acap raw <id>`" + ` — full raw output (use as last resort)
+`
+
+// InstallHook installs a PreToolUse Bash hook with the given command string in
+// the workspace's .claude/settings.json. Intended for benchmark workspaces that
+// always start without a pre-existing settings file.
+func InstallHook(projectRoot, cmd string) error {
+	if cmd == "" {
+		cmd = hookCommand
+	}
+	if err := os.MkdirAll(filepath.Join(projectRoot, ".claude"), 0o755); err != nil {
+		return fmt.Errorf("claude: mkdir: %w", err)
+	}
+	path := filepath.Join(projectRoot, settingsFile)
+	settings, err := readSettings(path)
+	if err != nil {
+		return err
+	}
+	type entry struct {
+		Type    string `json:"type"`
+		Command string `json:"command"`
+	}
+	type matcher struct {
+		Matcher string  `json:"matcher"`
+		Hooks   []entry `json:"hooks"`
+	}
+	type hooksObj struct {
+		PreToolUse []matcher `json:"PreToolUse"`
+	}
+	type root struct {
+		Hooks hooksObj `json:"hooks"`
+	}
+	raw, err := json.Marshal(root{Hooks: hooksObj{PreToolUse: []matcher{{
+		Matcher: hookMatcher,
+		Hooks:   []entry{{Type: "command", Command: cmd}},
+	}}}})
+	if err != nil {
+		return err
+	}
+	var hooks object
+	json.Unmarshal(raw, &hooks)
+	for k, v := range hooks {
+		settings[k] = v
+	}
+	data, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		return err
+	}
+	data = append(data, '\n')
+	return os.WriteFile(path, data, 0o600)
+}
+
+// InstallInstructions writes AgentCap recovery guidance to CLAUDE.md in the
+// workspace root so that Claude Code can discover and apply it.
+func InstallInstructions(projectRoot string) error {
+	path := filepath.Join(projectRoot, claudeFile)
+	data, err := os.ReadFile(path)
+	if err == nil && bytes.Contains(data, []byte(instructionsMarker)) {
+		return nil
+	}
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		return fmt.Errorf("claude: CLAUDE.md: %w", err)
+	}
+	defer f.Close()
+	_, err = f.WriteString(instructionsContent)
+	return err
+}
+
 func update(root string, remove, dryRun bool) error {
 	path := filepath.Join(root, settingsFile)
 	settings, err := readSettings(path)

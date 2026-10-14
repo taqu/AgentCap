@@ -17,6 +17,9 @@ func TestMain(m *testing.M) {
 	if os.Getenv("AGENTBENCH_PROCESS") == "1" {
 		os.Exit(runAdapterProcess())
 	}
+	if os.Getenv("AGENTBENCH_CLAUDE_PROCESS") == "1" {
+		os.Exit(runClaudeAdapterProcess())
+	}
 	if len(os.Args) > 1 && os.Args[1] == "-verify-file" {
 		data, err := os.ReadFile(os.Args[2])
 		fmt.Print(strings.Repeat("verification output is not agent-visible\n", 100))
@@ -26,6 +29,24 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 	os.Exit(m.Run())
+}
+
+func runClaudeAdapterProcess() int {
+	if os.Getenv("AGENTBENCH_SLEEP") == "1" {
+		time.Sleep(5 * time.Second)
+	}
+	// Emit minimal Claude Code stream-json events so parseClaudeCodeEvents works.
+	fmt.Println(`{"type":"system","subtype":"init","model":"claude-test","session_id":"s1","tools":[]}`)
+	fmt.Println(`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","id":"t1","input":{"command":"echo hi"}}]}}`)
+	fmt.Println(`{"type":"user","tool_use_result":{"stdout":"hi\n","stderr":""}}`)
+	fmt.Println(`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","id":"t2","input":{"command":"ls"}}]}}`)
+	fmt.Println(`{"type":"user","tool_use_result":{"stdout":"file.txt\n","stderr":""}}`)
+	fmt.Println(`{"type":"result","subtype":"success","usage":{"input_tokens":10,"output_tokens":5,"cache_creation_input_tokens":100,"cache_read_input_tokens":50}}`)
+	fmt.Fprintf(os.Stderr, "%s|%s|cwd=%s|args=%s", os.Getenv("ACAP_ROOT"), os.Getenv("ACAP_BENCH_MODE"), filepath.Base(os.Getenv("PWD")), strings.Join(os.Args[1:], " "))
+	if os.Getenv("AGENTBENCH_EXIT") == "1" {
+		return 7
+	}
+	return 0
 }
 
 func runAdapterProcess() int {

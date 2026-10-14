@@ -256,7 +256,7 @@ steps:
 	if err := json.Unmarshal([]byte(out), &result); err != nil {
 		t.Fatalf("stdout is not JSON-only: %v\n%s", err, out)
 	}
-	if result.SchemaVersion != 4 || result.Workload != "cli/json" || result.Commands != 1 || result.RawBytes == 0 || result.ProcessingNS <= 0 || result.InitialVisibleBytes != result.StatefulBytes || result.ShowCount != 2 || result.RawRetrievalCount != 1 || result.ShowBytes <= 0 || result.RawRetrievalBytes <= 0 || result.TotalVisibleBytes != result.InitialVisibleBytes+result.ShowBytes+result.RawRetrievalBytes {
+	if result.SchemaVersion != 5 || result.Workload != "cli/json" || result.Commands != 1 || result.RawBytes == 0 || result.ProcessingNS <= 0 || result.InitialVisibleBytes != result.StatefulBytes || result.ShowCount != 2 || result.RawRetrievalCount != 1 || result.ShowBytes <= 0 || result.RawRetrievalBytes <= 0 || result.TotalVisibleBytes != result.InitialVisibleBytes+result.ShowBytes+result.RawRetrievalBytes {
 		t.Fatalf("result = %+v", result)
 	}
 	data, err := os.ReadFile(counter)

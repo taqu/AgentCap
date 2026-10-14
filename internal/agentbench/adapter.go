@@ -29,6 +29,13 @@ type AgentRunResult struct {
 	CommandVisibleBytes int64
 	Stdout              []byte
 	Stderr              []byte
+	// Provider-reported token usage (zero if unavailable).
+	InputTokens         int64
+	OutputTokens        int64
+	CacheCreationTokens int64
+	CacheReadTokens     int64
+	// Model reported by the agent (empty if unavailable).
+	Model string
 }
 
 // NewAdapter resolves a supported real adapter without leaking agent-specific
@@ -37,7 +44,9 @@ func NewAdapter(name, model string) (Adapter, error) {
 	switch name {
 	case "codex":
 		return &CodexAdapter{Executable: "codex", Model: model}, nil
+	case "claude":
+		return &ClaudeCodeAdapter{Executable: "claude", Model: model}, nil
 	default:
-		return nil, fmt.Errorf("unsupported coding agent %q (supported: codex)", name)
+		return nil, fmt.Errorf("unsupported coding agent %q (supported: codex, claude)", name)
 	}
 }

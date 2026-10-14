@@ -44,6 +44,16 @@ func WriteHuman(w io.Writer, result *BenchmarkResult, verbose bool) error {
 	if result.Agent != "" {
 		fmt.Fprintf(&sb, "\ntime:\n  agent wall clock:      %s\n  AgentCap processing:   %s\n", duration(time.Duration(result.WallTimeNS)), duration(time.Duration(result.ProcessingNS)))
 	}
+	if result.InputTokens != 0 || result.OutputTokens != 0 {
+		model := result.Model
+		if model == "" {
+			model = "n/a"
+		}
+		fmt.Fprintf(&sb, "\ntokens (%s):\n  input:                 %d\n  output:                %d\n", model, result.InputTokens, result.OutputTokens)
+		if result.CacheCreationTokens != 0 || result.CacheReadTokens != 0 {
+			fmt.Fprintf(&sb, "  cache write:           %d\n  cache read:            %d\n", result.CacheCreationTokens, result.CacheReadTokens)
+		}
+	}
 	if verbose && run != nil && len(run.Steps) > 0 {
 		sb.WriteString("\nsteps:\n")
 		for _, step := range run.Steps {

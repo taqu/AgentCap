@@ -141,6 +141,13 @@ func Run(ctx context.Context, definition *workload.Definition, opts Options) (tr
 		benchmark.RawRetrievalCount = int(delta.RawCalls)
 		benchmark.ProcessingNS = delta.ProcessingNS
 	}
+	benchmark.InputTokens = agentResult.InputTokens
+	benchmark.OutputTokens = agentResult.OutputTokens
+	benchmark.CacheCreationTokens = agentResult.CacheCreationTokens
+	benchmark.CacheReadTokens = agentResult.CacheReadTokens
+	if agentResult.Model != "" {
+		benchmark.Model = agentResult.Model
+	}
 	trial.Benchmark = benchmark
 	return trial, nil
 }

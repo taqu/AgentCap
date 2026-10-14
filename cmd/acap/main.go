@@ -46,7 +46,7 @@ Usage:
   acap bench command [--json] [--session <id>] -- <command> [args...]
   acap bench session <start|show>
   acap bench run [--json] [--verbose] [--keep-workspace] <workload.yaml>
-  acap bench agent --workload <workload.yaml> --agent codex --mode <mode>
+  acap bench agent --workload <workload.yaml> --agent <codex|claude> --mode <mode>
   acap bench compare [--json] <baseline.json> <candidate.json>
   acap bench suite --out <dir> <regression.yaml>
   acap bench check --baseline <path> --candidate <path> --policy <regression.yaml>
@@ -71,6 +71,7 @@ Examples:
   acap bench session start
   acap bench run benchmarks/workloads/git/repeated-diff.yaml
   acap bench agent --workload benchmarks/workloads/agent/go-bugfix.yaml --agent codex --mode integrated
+  acap bench agent --workload benchmarks/workloads/agent/go-bugfix.yaml --agent claude --mode integrated
   acap bench compare disabled.json integrated.json
   acap bench suite --out results/candidate benchmarks/regression.yaml
   acap bench check --baseline results/baseline --candidate results/candidate --policy benchmarks/regression.yaml
@@ -160,7 +161,7 @@ Flags:
   --keep-workspace  Retain and print the temporary workspace path.
 `
 
-const benchAgentUsage = `Usage: acap bench agent --workload <workload.yaml> --agent codex --mode <mode> [flags]
+const benchAgentUsage = `Usage: acap bench agent --workload <workload.yaml> --agent <codex|claude> --mode <mode> [flags]
 
 Runs one or more independent coding-agent trials in fresh fixture workspaces,
 then executes each verifier outside the agent-visible measurement boundary.
@@ -173,7 +174,7 @@ Modes (required):
 
 Flags:
   --workload <path>  Coding-agent workload YAML (required).
-  --agent <name>     Agent adapter; currently codex (required).
+  --agent <name>     Agent adapter; codex or claude (required).
   --mode <mode>      Comparison mode (required).
   --model <model>    Optional agent model override.
   --timeout <dur>    Agent timeout override (for example 10m).
@@ -1041,7 +1042,11 @@ func benchAgentCmd(args []string) {
 	}
 	cwd, _ := os.Getwd()
 	executable, _ := os.Executable()
-	hookCommand := strconv.Quote(executable) + " hook codex"
+	hookSuffix := "codex"
+	if *agentFlag == "claude" {
+		hookSuffix = "claude"
+	}
+	hookCommand := strconv.Quote(executable) + " hook " + hookSuffix
 	run, runErr := agentbench.RunRepeated(context.Background(), definition, agentbench.Options{
 		Adapter: adapter, Mode: mode, StoreRoot: project.FindRoot(cwd),
 		Timeout: *timeoutFlag, KeepWorkspace: *keepFlag,

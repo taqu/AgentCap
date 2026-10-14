@@ -2,7 +2,7 @@ package workload
 
 // BenchmarkResultSchemaVersion identifies the JSON benchmark result contract.
 // It is independent of the workload-definition and result-store schemas.
-const BenchmarkResultSchemaVersion = 4
+const BenchmarkResultSchemaVersion = 5
 
 // BenchmarkResult is the canonical externally meaningful result of one
 // workload run. Human and JSON formatters both consume this model.
@@ -31,6 +31,13 @@ type BenchmarkResult struct {
 	ExecutionStatus string `json:"execution_status,omitempty"`
 	AgentExitCode   *int   `json:"agent_exit_code,omitempty"`
 	WallTimeNS      int64  `json:"wall_time_ns,omitempty"`
+
+	// Provider-reported token usage; zero when unavailable or not applicable.
+	InputTokens         int64  `json:"input_tokens,omitempty"`
+	OutputTokens        int64  `json:"output_tokens,omitempty"`
+	CacheCreationTokens int64  `json:"cache_creation_tokens,omitempty"`
+	CacheReadTokens     int64  `json:"cache_read_tokens,omitempty"`
+	Model               string `json:"model,omitempty"`
 
 	// presentation contains B3 details used only by the human/verbose view.
 	presentation *Result
