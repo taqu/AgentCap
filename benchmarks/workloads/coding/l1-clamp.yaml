@@ -1,0 +1,18 @@
+version: 1
+name: coding/l1-clamp
+fixture: ../../fixtures/l1-clamp
+git: {init: true}
+timeout: 8m
+task: |
+  Repair Clamp so it clamps integers to the inclusive [low, high] interval without changing its signature.
+  Preserve existing tests and go.mod. Use only the Go standard library. Complete and validate the task in this workspace.
+verify:
+  - run:
+      argv: ["git", "diff", "--exit-code", "HEAD", "--", "*_test.go", "go.mod"]
+      expect: {exit: 0}
+  - run:
+      argv: ["go", "test", "-count=1", "./..."]
+      expect: {exit: 0}
+  - run:
+      argv: ["go", "vet", "./..."]
+      expect: {exit: 0}

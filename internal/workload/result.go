@@ -38,6 +38,13 @@ type BenchmarkResult struct {
 	CacheCreationTokens int64  `json:"cache_creation_tokens,omitempty"`
 	CacheReadTokens     int64  `json:"cache_read_tokens,omitempty"`
 	Model               string `json:"model,omitempty"`
+	UsageAvailable      bool   `json:"usage_available,omitempty"`
+	ToolCount           int    `json:"tool_count,omitempty"`
+	InterceptedCommands int    `json:"intercepted_commands,omitempty"`
+	ToolVisibleBytes    int64  `json:"tool_visible_bytes,omitempty"`
+	UnchangedCount      int64  `json:"unchanged_count,omitempty"`
+	DeltaCount          int64  `json:"delta_count,omitempty"`
+	FullFallbackCount   int64  `json:"full_fallback_count,omitempty"`
 
 	// presentation contains B3 details used only by the human/verbose view.
 	presentation *Result

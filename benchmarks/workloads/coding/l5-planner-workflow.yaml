@@ -1,0 +1,18 @@
+version: 1
+name: coding/l5-planner-workflow
+fixture: ../../fixtures/l5-planner-workflow
+git: {init: true}
+timeout: 20m
+task: |
+  Repair the dependency planner through staged validation: establish deterministic topological order and parsing rejection of duplicates, empty names, missing dependencies and cycles; fix cache invalidation for changed inputs without masking errors; make batch processing fail atomically (nil output on any error); finish the CLI with newline-terminated plans and nonzero error exits. Validate graph/parse/plan first, cache/batch next, subprocess integration last. Preserve public APIs and tests.
+  Preserve existing tests and go.mod. Use only the Go standard library. Complete and validate the task in this workspace.
+verify:
+  - run:
+      argv: ["git", "diff", "--exit-code", "HEAD", "--", "*_test.go", "go.mod"]
+      expect: {exit: 0}
+  - run:
+      argv: ["go", "test", "-count=1", "./..."]
+      expect: {exit: 0}
+  - run:
+      argv: ["go", "vet", "./..."]
+      expect: {exit: 0}

@@ -1,0 +1,15 @@
+{
+  "schema_version": 5,
+  "workload": "git/repeated-diff",
+  "commands": 3,
+  "raw_bytes": 716,
+  "stateless_bytes": 285,
+  "stateful_bytes": 203,
+  "initial_visible_bytes": 203,
+  "show_bytes": 0,
+  "raw_retrieval_bytes": 0,
+  "total_visible_bytes": 203,
+  "show_count": 0,
+  "raw_retrieval_count": 0,
+  "processing_ns": 100243400
+}

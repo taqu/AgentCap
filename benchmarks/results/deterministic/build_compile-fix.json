@@ -1,0 +1,15 @@
+{
+  "schema_version": 5,
+  "workload": "build/compile-fix",
+  "commands": 3,
+  "raw_bytes": 521,
+  "stateless_bytes": 221,
+  "stateful_bytes": 221,
+  "initial_visible_bytes": 221,
+  "show_bytes": 0,
+  "raw_retrieval_bytes": 0,
+  "total_visible_bytes": 221,
+  "show_count": 0,
+  "raw_retrieval_count": 0,
+  "processing_ns": 75240700
+}

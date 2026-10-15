@@ -1,0 +1,18 @@
+version: 1
+name: coding/l3-ledger
+fixture: ../../fixtures/l3-ledger
+git: {init: true}
+timeout: 14m
+task: |
+  Repair the event processing pipeline. Credits add and debits subtract nonnegative amounts; duplicate event IDs are ignored. Reject empty IDs and unknown kinds without changing ledger state. Run returns total=<integer> followed by a newline. Preserve package APIs.
+  Preserve existing tests and go.mod. Use only the Go standard library. Complete and validate the task in this workspace.
+verify:
+  - run:
+      argv: ["git", "diff", "--exit-code", "HEAD", "--", "*_test.go", "go.mod"]
+      expect: {exit: 0}
+  - run:
+      argv: ["go", "test", "-count=1", "./..."]
+      expect: {exit: 0}
+  - run:
+      argv: ["go", "vet", "./..."]
+      expect: {exit: 0}

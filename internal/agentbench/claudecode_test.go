@@ -60,6 +60,31 @@ func TestParseClaudeCodeEventsEmptyAndMalformed(t *testing.T) {
 	}
 }
 
+func TestClaudeNativeToolResultsAndUnavailableUsage(t *testing.T) {
+	data := `{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read"},{"type":"tool_use","name":"Bash"}]}}
+{"type":"user","message":{"content":[{"type":"tool_result","content":[{"type":"text","text":"日本語"}]}]},"tool_use_result":{"type":"text","file":{"content":"日本語"}}}
+{"type":"user","message":{"content":[{"type":"tool_result","content":"ok\n"}]},"tool_use_result":{"stdout":"ok\n","stderr":""}}
+{"type":"result","is_error":true,"usage":{"input_tokens":0,"output_tokens":0}}
+`
+	result := &AgentRunResult{}
+	parseClaudeCodeEvents([]byte(data), result)
+	if result.ToolCount != 2 || result.CommandCount != 1 || result.ToolVisibleBytes != int64(len("日本語ok\n")) || result.CommandVisibleBytes != 3 || result.UsageAvailable {
+		t.Fatalf("unexpected mixed native/shell metrics: %+v", result)
+	}
+}
+
+func TestClaudeModelUsageIncludesAuxiliaryModelsWithoutDoubleCounting(t *testing.T) {
+	data := `{"type":"assistant","message":{"content":[{"type":"tool_use","id":"shell1","name":"Bash"}]}}
+{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"shell1","content":"Exit code 1\nfailed"}]},"tool_use_result":"Error: failed"}
+{"type":"result","usage":{"input_tokens":3,"output_tokens":4},"modelUsage":{"main":{"inputTokens":3,"outputTokens":4,"cacheCreationInputTokens":5,"cacheReadInputTokens":6},"aux":{"inputTokens":7,"outputTokens":8}}}
+`
+	result := &AgentRunResult{}
+	parseClaudeCodeEvents([]byte(data), result)
+	if result.InputTokens != 10 || result.OutputTokens != 12 || result.CacheCreationTokens != 5 || result.CacheReadTokens != 6 || result.CommandVisibleBytes != int64(len("Exit code 1\nfailed")) || !result.UsageAvailable {
+		t.Fatalf("unexpected model/shell metrics: %+v", result)
+	}
+}
+
 func TestClaudeCodeAdapterInvocationModesExitAndTimeout(t *testing.T) {
 	exe, _ := os.Executable()
 	t.Setenv("AGENTBENCH_CLAUDE_PROCESS", "1")
@@ -151,7 +176,7 @@ func TestClaudeCodeAdapterInstallsHookForAgentCapModes(t *testing.T) {
 	}
 }
 
-func TestClaudeCodeAdapterPassesDangerouslySkipPermissionsOnlyWhenEnabled(t *testing.T) {
+func TestClaudeCodeAdapterUsesEqualPermissions(t *testing.T) {
 	exe, _ := os.Executable()
 	t.Setenv("AGENTBENCH_CLAUDE_PROCESS", "1")
 	adapter := &ClaudeCodeAdapter{Executable: exe}
@@ -160,7 +185,7 @@ func TestClaudeCodeAdapterPassesDangerouslySkipPermissionsOnlyWhenEnabled(t *tes
 		mode    Mode
 		wantArg string
 	}{
-		{ModeDisabled, ""},
+		{ModeDisabled, "--dangerously-skip-permissions"},
 		{ModeStateless, "--dangerously-skip-permissions"},
 		{ModeIntegrated, "--dangerously-skip-permissions"},
 	} {

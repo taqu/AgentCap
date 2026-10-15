@@ -1,0 +1,18 @@
+version: 1
+name: coding/l5-ledger-workflow
+fixture: ../../fixtures/l5-ledger-workflow
+git: {init: true}
+timeout: 20m
+task: |
+  Deliver the ledger batch CLI in stages: first restore ledger unit behavior (credits, debits, ID idempotency, invalid-event rejection); then integrate newline-separated JSON batches, ignoring blank lines; finally make the CLI print total=<integer> with a newline on success and exit nonzero on invalid input. Validate the unit layer before the batch layer, then the subprocess integration. Preserve existing APIs and tests.
+  Preserve existing tests and go.mod. Use only the Go standard library. Complete and validate the task in this workspace.
+verify:
+  - run:
+      argv: ["git", "diff", "--exit-code", "HEAD", "--", "*_test.go", "go.mod"]
+      expect: {exit: 0}
+  - run:
+      argv: ["go", "test", "-count=1", "./..."]
+      expect: {exit: 0}
+  - run:
+      argv: ["go", "vet", "./..."]
+      expect: {exit: 0}

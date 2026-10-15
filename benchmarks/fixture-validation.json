@@ -1,0 +1,322 @@
+[
+  {
+    "id": "coding/l1-clamp",
+    "initial": {
+      "argv": [
+        "go",
+        "test",
+        "-count=1",
+        "./..."
+      ],
+      "exit": 1,
+      "output": "--- FAIL: TestClamp (0.00s)\n    clamp_test.go:3: Clamp[-2 0 10 0]=10\n    clamp_test.go:3: Clamp[12 0 10 10]=0\n    clamp_test.go:3: Clamp[-9 -5 -1 -5]=-1\nFAIL\nFAIL\tbench.local/work\t0.556s\nFAIL\nwarning: both GOPATH and GOROOT are the same directory (D:\\Programs\\Go); see https://go.dev/wiki/InstallTroubleshooting\n"
+    },
+    "repaired": {
+      "argv": [
+        "go",
+        "test",
+        "-count=1",
+        "./..."
+      ],
+      "exit": 0,
+      "output": "ok  \tbench.local/work\t0.568s\nwarning: both GOPATH and GOROOT are the same directory (D:\\Programs\\Go); see https://go.dev/wiki/InstallTroubleshooting\n"
+    },
+    "vet": {
+      "argv": [
+        "go",
+        "vet",
+        "./..."
+      ],
+      "exit": 0,
+      "output": "warning: both GOPATH and GOROOT are the same directory (D:\\Programs\\Go); see https://go.dev/wiki/InstallTroubleshooting\n"
+    }
+  },
+  {
+    "id": "coding/l1-duration",
+    "initial": {
+      "argv": [
+        "go",
+        "test",
+        "-count=1",
+        "./..."
+      ],
+      "exit": 1,
+      "output": "--- FAIL: TestSeconds (0.00s)\n    duration_test.go:3: 1 = 1ms\n    duration_test.go:3: 60 = 60ms\nFAIL\nFAIL\tbench.local/work\t0.594s\nFAIL\nwarning: both GOPATH and GOROOT are the same directory (D:\\Programs\\Go); see https://go.dev/wiki/InstallTroubleshooting\n"
+    },
+    "repaired": {
+      "argv": [
+        "go",
+        "test",
+        "-count=1",
+        "./..."
+      ],
+      "exit": 0,
+      "output": "ok  \tbench.local/work\t0.573s\nwarning: both GOPATH and GOROOT are the same directory (D:\\Programs\\Go); see https://go.dev/wiki/InstallTroubleshooting\n"
+    },
+    "vet": {
+      "argv": [
+        "go",
+        "vet",
+        "./..."
+      ],
+      "exit": 0,
+      "output": "warning: both GOPATH and GOROOT are the same directory (D:\\Programs\\Go); see https://go.dev/wiki/InstallTroubleshooting\n"
+    }
+  },
+  {
+    "id": "coding/l2-config",
+    "initial": {
+      "argv": [
+        "go",
+        "test",
+        "-count=1",
+        "./..."
+      ],
+      "exit": 1,
+      "output": "--- FAIL: TestConfig (0.00s)\n    client_test.go:3: strconv.Atoi: parsing \"\": invalid syntax\nFAIL\nFAIL\tbench.local/work/client\t0.579s\n?   \tbench.local/work/config\t[no test files]\nFAIL\nwarning: both GOPATH and GOROOT are the same directory (D:\\Programs\\Go); see https://go.dev/wiki/InstallTroubleshooting\n"
+    },
+    "repaired": {
+      "argv": [
+        "go",
+        "test",
+        "-count=1",
+        "./..."
+      ],
+      "exit": 0,
+      "output": "ok  \tbench.local/work/client\t0.571s\n?   \tbench.local/work/config\t[no test files]\nwarning: both GOPATH and GOROOT are the same directory (D:\\Programs\\Go); see https://go.dev/wiki/InstallTroubleshooting\n"
+    },
+    "vet": {
+      "argv": [
+        "go",
+        "vet",
+        "./..."
+      ],
+      "exit": 0,
+      "output": "warning: both GOPATH and GOROOT are the same directory (D:\\Programs\\Go); see https://go.dev/wiki/InstallTroubleshooting\n"
+    }
+  },
+  {
+    "id": "coding/l2-pagination",
+    "initial": {
+      "argv": [
+        "go",
+        "test",
+        "-count=1",
+        "./..."
+      ],
+      "exit": 1,
+      "output": "?   \tbench.local/work/paging\t[no test files]\n--- FAIL: TestList (0.00s)\n    list_test.go:3: page [a b c] <nil>\nFAIL\nFAIL\tbench.local/work/service\t0.581s\nFAIL\nwarning: both GOPATH and GOROOT are the same directory (D:\\Programs\\Go); see https://go.dev/wiki/InstallTroubleshooting\n"
+    },
+    "repaired": {
+      "argv": [
+        "go",
+        "test",
+        "-count=1",
+        "./..."
+      ],
+      "exit": 0,
+      "output": "?   \tbench.local/work/paging\t[no test files]\nok  \tbench.local/work/service\t0.585s\nwarning: both GOPATH and GOROOT are the same directory (D:\\Programs\\Go); see https://go.dev/wiki/InstallTroubleshooting\n"
+    },
+    "vet": {
+      "argv": [
+        "go",
+        "vet",
+        "./..."
+      ],
+      "exit": 0,
+      "output": "warning: both GOPATH and GOROOT are the same directory (D:\\Programs\\Go); see https://go.dev/wiki/InstallTroubleshooting\n"
+    }
+  },
+  {
+    "id": "coding/l3-ledger",
+    "initial": {
+      "argv": [
+        "go",
+        "test",
+        "-count=1",
+        "./..."
+      ],
+      "exit": 1,
+      "output": "?   \tbench.local/work/decode\t[no test files]\n--- FAIL: TestApply (0.00s)\n    ledger_test.go:3: total 22\nFAIL\nFAIL\tbench.local/work/ledger\t0.570s\n?   \tbench.local/work/model\t[no test files]\n?   \tbench.local/work/report\t[no test files]\n--- FAIL: TestRun (0.00s)\n    service_test.go:3: result \"22\" <nil>\nFAIL\nFAIL\tbench.local/work/service\t0.651s\nFAIL\nwarning: both GOPATH and GOROOT are the same directory (D:\\Programs\\Go); see https://go.dev/wiki/InstallTroubleshooting\n"
+    },
+    "repaired": {
+      "argv": [
+        "go",
+        "test",
+        "-count=1",
+        "./..."
+      ],
+      "exit": 0,
+      "output": "?   \tbench.local/work/decode\t[no test files]\nok  \tbench.local/work/ledger\t0.580s\n?   \tbench.local/work/model\t[no test files]\n?   \tbench.local/work/report\t[no test files]\nok  \tbench.local/work/service\t0.663s\nwarning: both GOPATH and GOROOT are the same directory (D:\\Programs\\Go); see https://go.dev/wiki/InstallTroubleshooting\n"
+    },
+    "vet": {
+      "argv": [
+        "go",
+        "vet",
+        "./..."
+      ],
+      "exit": 0,
+      "output": "warning: both GOPATH and GOROOT are the same directory (D:\\Programs\\Go); see https://go.dev/wiki/InstallTroubleshooting\n"
+    }
+  },
+  {
+    "id": "coding/l3-planner",
+    "initial": {
+      "argv": [
+        "go",
+        "test",
+        "-count=1",
+        "./..."
+      ],
+      "exit": 1,
+      "output": "--- FAIL: TestOrder (0.00s)\n    graph_test.go:3: unstable [b a] <nil>\nFAIL\nFAIL\tbench.local/work/graph\t0.571s\n?   \tbench.local/work/parse\t[no test files]\n--- FAIL: TestBuild (0.00s)\n    plan_test.go:3: plan \"app,lib,base\" <nil>\nFAIL\nFAIL\tbench.local/work/plan\t0.661s\nFAIL\nwarning: both GOPATH and GOROOT are the same directory (D:\\Programs\\Go); see https://go.dev/wiki/InstallTroubleshooting\n"
+    },
+    "repaired": {
+      "argv": [
+        "go",
+        "test",
+        "-count=1",
+        "./..."
+      ],
+      "exit": 0,
+      "output": "ok  \tbench.local/work/graph\t0.573s\n?   \tbench.local/work/parse\t[no test files]\nok  \tbench.local/work/plan\t0.666s\nwarning: both GOPATH and GOROOT are the same directory (D:\\Programs\\Go); see https://go.dev/wiki/InstallTroubleshooting\n"
+    },
+    "vet": {
+      "argv": [
+        "go",
+        "vet",
+        "./..."
+      ],
+      "exit": 0,
+      "output": "warning: both GOPATH and GOROOT are the same directory (D:\\Programs\\Go); see https://go.dev/wiki/InstallTroubleshooting\n"
+    }
+  },
+  {
+    "id": "coding/l4-store",
+    "initial": {
+      "argv": [
+        "go",
+        "test",
+        "-count=1",
+        "./..."
+      ],
+      "exit": 1,
+      "output": "--- FAIL: TestClients (0.00s)\n    api_test.go:3: conflict\nFAIL\nFAIL\tbench.local/work/api\t0.656s\n?   \tbench.local/work/export\t[no test files]\n?   \tbench.local/work/record\t[no test files]\n?   \tbench.local/work/replica\t[no test files]\n--- FAIL: TestCAS (0.00s)\n    storage_test.go:3: stale accepted\nFAIL\nFAIL\tbench.local/work/storage\t0.522s\nFAIL\nwarning: both GOPATH and GOROOT are the same directory (D:\\Programs\\Go); see https://go.dev/wiki/InstallTroubleshooting\n"
+    },
+    "repaired": {
+      "argv": [
+        "go",
+        "test",
+        "-count=1",
+        "./..."
+      ],
+      "exit": 0,
+      "output": "ok  \tbench.local/work/api\t0.666s\n?   \tbench.local/work/export\t[no test files]\n?   \tbench.local/work/record\t[no test files]\n?   \tbench.local/work/replica\t[no test files]\nok  \tbench.local/work/storage\t0.539s\nwarning: both GOPATH and GOROOT are the same directory (D:\\Programs\\Go); see https://go.dev/wiki/InstallTroubleshooting\n"
+    },
+    "vet": {
+      "argv": [
+        "go",
+        "vet",
+        "./..."
+      ],
+      "exit": 0,
+      "output": "warning: both GOPATH and GOROOT are the same directory (D:\\Programs\\Go); see https://go.dev/wiki/InstallTroubleshooting\n"
+    }
+  },
+  {
+    "id": "coding/l4-context-migration",
+    "initial": {
+      "argv": [
+        "go",
+        "test",
+        "-count=1",
+        "./..."
+      ],
+      "exit": 1,
+      "output": "FAIL\tbench.local/work/api [build failed]\nFAIL\tbench.local/work/export [build failed]\n?   \tbench.local/work/record\t[no test files]\nFAIL\tbench.local/work/replica [build failed]\n--- FAIL: TestCancel (0.00s)\n    cancel_test.go:3: canceled write\n--- FAIL: TestCAS (0.00s)\n    storage_test.go:3: stale accepted\nFAIL\nFAIL\tbench.local/work/storage\t0.584s\nFAIL\nwarning: both GOPATH and GOROOT are the same directory (D:\\Programs\\Go); see https://go.dev/wiki/InstallTroubleshooting\n# bench.local/work/replica\nreplica\\replica.go:3:60: not enough arguments in call to s.Snapshot\n\thave ()\n\twant (context.Context)\n# bench.local/work/export\nexport\\export.go:3:63: not enough arguments in call to s.Snapshot\n\thave ()\n\twant (context.Context)\n"
+    },
+    "repaired": {
+      "argv": [
+        "go",
+        "test",
+        "-count=1",
+        "./..."
+      ],
+      "exit": 0,
+      "output": "ok  \tbench.local/work/api\t0.676s\n?   \tbench.local/work/export\t[no test files]\n?   \tbench.local/work/record\t[no test files]\n?   \tbench.local/work/replica\t[no test files]\nok  \tbench.local/work/storage\t0.534s\nwarning: both GOPATH and GOROOT are the same directory (D:\\Programs\\Go); see https://go.dev/wiki/InstallTroubleshooting\n"
+    },
+    "vet": {
+      "argv": [
+        "go",
+        "vet",
+        "./..."
+      ],
+      "exit": 0,
+      "output": "warning: both GOPATH and GOROOT are the same directory (D:\\Programs\\Go); see https://go.dev/wiki/InstallTroubleshooting\n"
+    }
+  },
+  {
+    "id": "coding/l5-ledger-workflow",
+    "initial": {
+      "argv": [
+        "go",
+        "test",
+        "-count=1",
+        "./..."
+      ],
+      "exit": 1,
+      "output": "--- FAIL: TestBatch (0.00s)\n    batch_test.go:3:  unexpected end of JSON input\nFAIL\nFAIL\tbench.local/work/batch\t0.697s\n?   \tbench.local/work/cmd/ledger\t[no test files]\n?   \tbench.local/work/decode\t[no test files]\n--- FAIL: TestCLI (1.05s)\n    cli_test.go:3: 7 <nil>\nFAIL\nFAIL\tbench.local/work/integration\t1.557s\n--- FAIL: TestApply (0.00s)\n    ledger_test.go:3: total 22\nFAIL\nFAIL\tbench.local/work/ledger\t0.502s\n?   \tbench.local/work/model\t[no test files]\n?   \tbench.local/work/report\t[no test files]\n--- FAIL: TestRun (0.00s)\n    service_test.go:3: result \"22\" <nil>\nFAIL\nFAIL\tbench.local/work/service\t0.697s\nFAIL\nwarning: both GOPATH and GOROOT are the same directory (D:\\Programs\\Go); see https://go.dev/wiki/InstallTroubleshooting\n"
+    },
+    "repaired": {
+      "argv": [
+        "go",
+        "test",
+        "-count=1",
+        "./..."
+      ],
+      "exit": 0,
+      "output": "ok  \tbench.local/work/batch\t0.708s\n?   \tbench.local/work/cmd/ledger\t[no test files]\n?   \tbench.local/work/decode\t[no test files]\nok  \tbench.local/work/integration\t1.873s\nok  \tbench.local/work/ledger\t0.491s\n?   \tbench.local/work/model\t[no test files]\n?   \tbench.local/work/report\t[no test files]\nok  \tbench.local/work/service\t0.666s\nwarning: both GOPATH and GOROOT are the same directory (D:\\Programs\\Go); see https://go.dev/wiki/InstallTroubleshooting\n"
+    },
+    "vet": {
+      "argv": [
+        "go",
+        "vet",
+        "./..."
+      ],
+      "exit": 0,
+      "output": "warning: both GOPATH and GOROOT are the same directory (D:\\Programs\\Go); see https://go.dev/wiki/InstallTroubleshooting\n"
+    }
+  },
+  {
+    "id": "coding/l5-planner-workflow",
+    "initial": {
+      "argv": [
+        "go",
+        "test",
+        "-count=1",
+        "./..."
+      ],
+      "exit": 1,
+      "output": "--- FAIL: TestBatch (0.00s)\n    batch_test.go:3: [a a a] <nil>\nFAIL\nFAIL\tbench.local/work/batch\t0.683s\n--- FAIL: TestInvalidation (0.00s)\n    cache_test.go:3: a <nil>\nFAIL\nFAIL\tbench.local/work/cache\t0.676s\n?   \tbench.local/work/cmd/planner\t[no test files]\n--- FAIL: TestOrder (0.00s)\n    graph_test.go:3: unstable [b a] <nil>\nFAIL\nFAIL\tbench.local/work/graph\t0.452s\n--- FAIL: TestCLI (1.06s)\n    cli_test.go:3: b,a <nil>\nFAIL\nFAIL\tbench.local/work/integration\t1.532s\n?   \tbench.local/work/parse\t[no test files]\n--- FAIL: TestBuild (0.00s)\n    plan_test.go:3: plan \"app,lib,base\" <nil>\nFAIL\nFAIL\tbench.local/work/plan\t0.643s\nFAIL\nwarning: both GOPATH and GOROOT are the same directory (D:\\Programs\\Go); see https://go.dev/wiki/InstallTroubleshooting\n"
+    },
+    "repaired": {
+      "argv": [
+        "go",
+        "test",
+        "-count=1",
+        "./..."
+      ],
+      "exit": 0,
+      "output": "ok  \tbench.local/work/batch\t0.694s\nok  \tbench.local/work/cache\t0.675s\n?   \tbench.local/work/cmd/planner\t[no test files]\nok  \tbench.local/work/graph\t0.421s\nok  \tbench.local/work/integration\t1.904s\n?   \tbench.local/work/parse\t[no test files]\nok  \tbench.local/work/plan\t0.659s\nwarning: both GOPATH and GOROOT are the same directory (D:\\Programs\\Go); see https://go.dev/wiki/InstallTroubleshooting\n"
+    },
+    "vet": {
+      "argv": [
+        "go",
+        "vet",
+        "./..."
+      ],
+      "exit": 0,
+      "output": "warning: both GOPATH and GOROOT are the same directory (D:\\Programs\\Go); see https://go.dev/wiki/InstallTroubleshooting\n"
+    }
+  }
+]

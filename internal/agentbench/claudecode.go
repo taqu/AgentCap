@@ -47,9 +47,10 @@ func (a *ClaudeCodeAdapter) Run(ctx context.Context, req AgentRunRequest) (*Agen
 		"--output-format", "stream-json",
 		"--verbose",
 		"--no-session-persistence",
-	}
-	if req.Mode.AgentCapEnabled() {
-		args = append(args, "--dangerously-skip-permissions")
+		"--dangerously-skip-permissions",
+		"--setting-sources", "project",
+		"--strict-mcp-config",
+		"--tools", "Bash,Read,Edit,Write,Glob,Grep",
 	}
 	model := req.Model
 	if model == "" {
@@ -92,6 +93,7 @@ func (a *ClaudeCodeAdapter) Run(ctx context.Context, req AgentRunRequest) (*Agen
 // parseClaudeCodeEvents extracts metrics from the Claude Code stream-json JSONL
 // output and populates result in place.
 func parseClaudeCodeEvents(data []byte, result *AgentRunResult) {
+	shellTools := map[string]bool{}
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	scanner.Buffer(make([]byte, 64*1024), 4*1024*1024)
 	for scanner.Scan() {
@@ -99,22 +101,29 @@ func parseClaudeCodeEvents(data []byte, result *AgentRunResult) {
 			Type    string `json:"type"`
 			Subtype string `json:"subtype"`
 			Model   string `json:"model"`
+			IsError bool   `json:"is_error"`
 			Message *struct {
 				Content []struct {
-					Type string `json:"type"`
-					Name string `json:"name"`
+					Type      string          `json:"type"`
+					Name      string          `json:"name"`
+					ID        string          `json:"id"`
+					ToolUseID string          `json:"tool_use_id"`
+					Content   json.RawMessage `json:"content"`
 				} `json:"content"`
 			} `json:"message"`
-			ToolUseResult *struct {
-				Stdout string `json:"stdout"`
-				Stderr string `json:"stderr"`
-			} `json:"tool_use_result"`
-			Usage *struct {
+			ToolUseResult json.RawMessage `json:"tool_use_result"`
+			Usage         *struct {
 				InputTokens              int64 `json:"input_tokens"`
 				OutputTokens             int64 `json:"output_tokens"`
 				CacheCreationInputTokens int64 `json:"cache_creation_input_tokens"`
 				CacheReadInputTokens     int64 `json:"cache_read_input_tokens"`
 			} `json:"usage"`
+			ModelUsage map[string]struct {
+				Input  int64 `json:"inputTokens"`
+				Output int64 `json:"outputTokens"`
+				Create int64 `json:"cacheCreationInputTokens"`
+				Read   int64 `json:"cacheReadInputTokens"`
+			} `json:"modelUsage"`
 		}
 		if json.Unmarshal(scanner.Bytes(), &event) != nil {
 			continue
@@ -127,23 +136,81 @@ func parseClaudeCodeEvents(data []byte, result *AgentRunResult) {
 		case "assistant":
 			if event.Message != nil {
 				for _, item := range event.Message.Content {
+					if item.Type == "tool_use" {
+						result.ToolCount++
+					}
 					if item.Type == "tool_use" && item.Name == "Bash" {
 						result.CommandCount++
+						shellTools[item.ID] = true
 					}
 				}
 			}
 		case "user":
-			if event.ToolUseResult != nil {
-				result.CommandVisibleBytes += int64(len(event.ToolUseResult.Stdout))
-				result.CommandVisibleBytes += int64(len(event.ToolUseResult.Stderr))
+			var shellVisible int64
+			matchedShell := false
+			if event.Message != nil {
+				for _, item := range event.Message.Content {
+					if item.Type == "tool_result" && item.ToolUseID != "" && shellTools[item.ToolUseID] {
+						matchedShell = true
+						shellVisible += claudeContentBytes(item.Content)
+					}
+				}
+			}
+			var shell struct {
+				Stdout string `json:"stdout"`
+				Stderr string `json:"stderr"`
+			}
+			if matchedShell {
+				result.CommandVisibleBytes += shellVisible
+			} else if json.Unmarshal(event.ToolUseResult, &shell) == nil {
+				result.CommandVisibleBytes += int64(len(shell.Stdout) + len(shell.Stderr))
+			}
+			if event.Message != nil {
+				for _, item := range event.Message.Content {
+					if item.Type == "tool_result" {
+						result.ToolVisibleBytes += claudeContentBytes(item.Content)
+					}
+				}
 			}
 		case "result":
 			if event.Usage != nil {
+				result.UsageAvailable = !event.IsError || event.Usage.InputTokens+event.Usage.OutputTokens+event.Usage.CacheCreationInputTokens+event.Usage.CacheReadInputTokens > 0
 				result.InputTokens = event.Usage.InputTokens
 				result.OutputTokens = event.Usage.OutputTokens
 				result.CacheCreationTokens = event.Usage.CacheCreationInputTokens
 				result.CacheReadTokens = event.Usage.CacheReadInputTokens
 			}
+			if len(event.ModelUsage) > 0 {
+				result.InputTokens, result.OutputTokens, result.CacheCreationTokens, result.CacheReadTokens = 0, 0, 0, 0
+				for _, usage := range event.ModelUsage {
+					result.InputTokens += usage.Input
+					result.OutputTokens += usage.Output
+					result.CacheCreationTokens += usage.Create
+					result.CacheReadTokens += usage.Read
+				}
+				result.UsageAvailable = true
+			}
 		}
 	}
+}
+
+func claudeContentBytes(data json.RawMessage) int64 {
+	var value string
+	if json.Unmarshal(data, &value) == nil {
+		return int64(len(value))
+	}
+	var blocks []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	if json.Unmarshal(data, &blocks) != nil {
+		return 0
+	}
+	var total int64
+	for _, block := range blocks {
+		if block.Type == "text" {
+			total += int64(len(block.Text))
+		}
+	}
+	return total
 }

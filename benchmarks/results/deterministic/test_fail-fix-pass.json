@@ -1,0 +1,15 @@
+{
+  "schema_version": 5,
+  "workload": "test/fail-fix-pass",
+  "commands": 3,
+  "raw_bytes": 547,
+  "stateless_bytes": 215,
+  "stateful_bytes": 215,
+  "initial_visible_bytes": 215,
+  "show_bytes": 0,
+  "raw_retrieval_bytes": 0,
+  "total_visible_bytes": 215,
+  "show_count": 0,
+  "raw_retrieval_count": 0,
+  "processing_ns": 117705000
+}

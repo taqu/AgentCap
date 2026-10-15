@@ -1,0 +1,18 @@
+version: 1
+name: coding/l2-config
+fixture: ../../fixtures/l2-config
+git: {init: true}
+timeout: 11m
+task: |
+  Fix configuration loading and client construction. An absent PORT defaults to 8080; an explicit port must be 1..65535. Address must include the supplied hostname and selected port.
+  Preserve existing tests and go.mod. Use only the Go standard library. Complete and validate the task in this workspace.
+verify:
+  - run:
+      argv: ["git", "diff", "--exit-code", "HEAD", "--", "*_test.go", "go.mod"]
+      expect: {exit: 0}
+  - run:
+      argv: ["go", "test", "-count=1", "./..."]
+      expect: {exit: 0}
+  - run:
+      argv: ["go", "vet", "./..."]
+      expect: {exit: 0}

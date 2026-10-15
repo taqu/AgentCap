@@ -142,6 +142,16 @@ func Run(ctx context.Context, definition *workload.Definition, opts Options) (tr
 		benchmark.ProcessingNS = delta.ProcessingNS
 	}
 	benchmark.InputTokens = agentResult.InputTokens
+	if opts.Adapter.Name() == "claude" {
+		benchmark.InterceptedCommands = int(delta.Commands)
+		benchmark.Commands = agentResult.CommandCount
+	}
+	benchmark.UsageAvailable = agentResult.UsageAvailable
+	benchmark.ToolCount = agentResult.ToolCount
+	benchmark.ToolVisibleBytes = agentResult.ToolVisibleBytes
+	benchmark.UnchangedCount = delta.UnchangedCount
+	benchmark.DeltaCount = delta.DeltaCount
+	benchmark.FullFallbackCount = delta.FullFallbackCount
 	benchmark.OutputTokens = agentResult.OutputTokens
 	benchmark.CacheCreationTokens = agentResult.CacheCreationTokens
 	benchmark.CacheReadTokens = agentResult.CacheReadTokens
@@ -184,14 +194,17 @@ func loadStats(root string) (*stats.Stats, error) {
 
 func subtractStats(after, before *stats.Stats) stats.Stats {
 	return stats.Stats{
-		Commands:       after.Commands - before.Commands,
-		RawBytes:       after.RawBytes - before.RawBytes,
-		ShowCalls:      after.ShowCalls - before.ShowCalls,
-		ShowRetBytes:   after.ShowRetBytes - before.ShowRetBytes,
-		RawCalls:       after.RawCalls - before.RawCalls,
-		RawRetBytes:    after.RawRetBytes - before.RawRetBytes,
-		StatelessBytes: after.StatelessBytes - before.StatelessBytes,
-		StatefulBytes:  after.StatefulBytes - before.StatefulBytes,
-		ProcessingNS:   after.ProcessingNS - before.ProcessingNS,
+		Commands:          after.Commands - before.Commands,
+		RawBytes:          after.RawBytes - before.RawBytes,
+		ShowCalls:         after.ShowCalls - before.ShowCalls,
+		ShowRetBytes:      after.ShowRetBytes - before.ShowRetBytes,
+		RawCalls:          after.RawCalls - before.RawCalls,
+		RawRetBytes:       after.RawRetBytes - before.RawRetBytes,
+		StatelessBytes:    after.StatelessBytes - before.StatelessBytes,
+		StatefulBytes:     after.StatefulBytes - before.StatefulBytes,
+		ProcessingNS:      after.ProcessingNS - before.ProcessingNS,
+		UnchangedCount:    after.UnchangedCount - before.UnchangedCount,
+		DeltaCount:        after.DeltaCount - before.DeltaCount,
+		FullFallbackCount: after.FullFallbackCount - before.FullFallbackCount,
 	}
 }

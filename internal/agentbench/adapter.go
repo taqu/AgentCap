@@ -35,7 +35,10 @@ type AgentRunResult struct {
 	CacheCreationTokens int64
 	CacheReadTokens     int64
 	// Model reported by the agent (empty if unavailable).
-	Model string
+	Model            string
+	UsageAvailable   bool
+	ToolCount        int
+	ToolVisibleBytes int64
 }
 
 // NewAdapter resolves a supported real adapter without leaking agent-specific

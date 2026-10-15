@@ -1,0 +1,15 @@
+{
+  "schema_version": 5,
+  "workload": "recovery/show-and-raw",
+  "commands": 1,
+  "raw_bytes": 221,
+  "stateless_bytes": 95,
+  "stateful_bytes": 95,
+  "initial_visible_bytes": 95,
+  "show_bytes": 176,
+  "raw_retrieval_bytes": 221,
+  "total_visible_bytes": 492,
+  "show_count": 2,
+  "raw_retrieval_count": 1,
+  "processing_ns": 196035700
+}

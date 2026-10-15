@@ -1,0 +1,18 @@
+version: 1
+name: coding/l4-context-migration
+fixture: ../../fixtures/l4-context-migration
+git: {init: true}
+timeout: 17m
+task: |
+  Complete the storage API migration to context.Context across all packages. Put must reject a canceled context without mutation. Also restore revision conflict handling, snapshot independence and concurrency safety. Keep the new storage signatures and existing external API, export and replica signatures.
+  Preserve existing tests and go.mod. Use only the Go standard library. Complete and validate the task in this workspace.
+verify:
+  - run:
+      argv: ["git", "diff", "--exit-code", "HEAD", "--", "*_test.go", "go.mod"]
+      expect: {exit: 0}
+  - run:
+      argv: ["go", "test", "-count=1", "./..."]
+      expect: {exit: 0}
+  - run:
+      argv: ["go", "vet", "./..."]
+      expect: {exit: 0}

@@ -1,0 +1,18 @@
+version: 1
+name: coding/l4-store
+fixture: ../../fixtures/l4-store
+git: {init: true}
+timeout: 17m
+task: |
+  Repair the revisioned storage subsystem and all its callers. Expected revision 0 creates a missing key; updates require the current revision and increment it. Reject stale revisions, negative revisions and empty keys atomically. Snapshots and replica copies must not alias storage. Concurrent access must be safe. Preserve public APIs and export behavior.
+  Preserve existing tests and go.mod. Use only the Go standard library. Complete and validate the task in this workspace.
+verify:
+  - run:
+      argv: ["git", "diff", "--exit-code", "HEAD", "--", "*_test.go", "go.mod"]
+      expect: {exit: 0}
+  - run:
+      argv: ["go", "test", "-count=1", "./..."]
+      expect: {exit: 0}
+  - run:
+      argv: ["go", "vet", "./..."]
+      expect: {exit: 0}

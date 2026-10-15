@@ -1,0 +1,669 @@
+{
+  "rows": [
+    {
+      "key": "l1-clamp-1-disabled",
+      "id": "coding/l1-clamp",
+      "level": 1,
+      "mode": "disabled",
+      "repetition": 1,
+      "success": false,
+      "status": "agent_error",
+      "tokens": 0,
+      "seconds": 187.6638242,
+      "visible_bytes": null,
+      "shell_bytes": 0,
+      "commands": 0,
+      "drilldowns": 0,
+      "model": "claude-sonnet-4-6"
+    },
+    {
+      "key": "l1-clamp-1-integrated",
+      "id": "coding/l1-clamp",
+      "level": 1,
+      "mode": "integrated",
+      "repetition": 1,
+      "success": false,
+      "status": "agent_error",
+      "tokens": 0,
+      "seconds": 180.1910499,
+      "visible_bytes": null,
+      "shell_bytes": 0,
+      "commands": 0,
+      "drilldowns": 0,
+      "model": "claude-sonnet-4-6"
+    }
+  ],
+  "groups": [
+    {
+      "level": 1,
+      "mode": "disabled",
+      "unconditional": {
+        "runs": 1,
+        "successful": 0,
+        "tokens": {
+          "measured": 1,
+          "mean": 0,
+          "median": 0
+        },
+        "seconds": {
+          "measured": 1,
+          "mean": 187.6638242,
+          "median": 187.6638242
+        },
+        "visible_bytes": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "commands": {
+          "measured": 1,
+          "mean": 0,
+          "median": 0
+        },
+        "drilldowns": {
+          "measured": 1,
+          "mean": 0,
+          "median": 0
+        }
+      },
+      "successful_only": {
+        "runs": 0,
+        "successful": 0,
+        "tokens": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "seconds": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "visible_bytes": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "commands": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "drilldowns": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        }
+      }
+    },
+    {
+      "level": 1,
+      "mode": "integrated",
+      "unconditional": {
+        "runs": 1,
+        "successful": 0,
+        "tokens": {
+          "measured": 1,
+          "mean": 0,
+          "median": 0
+        },
+        "seconds": {
+          "measured": 1,
+          "mean": 180.1910499,
+          "median": 180.1910499
+        },
+        "visible_bytes": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "commands": {
+          "measured": 1,
+          "mean": 0,
+          "median": 0
+        },
+        "drilldowns": {
+          "measured": 1,
+          "mean": 0,
+          "median": 0
+        }
+      },
+      "successful_only": {
+        "runs": 0,
+        "successful": 0,
+        "tokens": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "seconds": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "visible_bytes": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "commands": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "drilldowns": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        }
+      }
+    },
+    {
+      "level": 2,
+      "mode": "disabled",
+      "unconditional": {
+        "runs": 0,
+        "successful": 0,
+        "tokens": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "seconds": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "visible_bytes": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "commands": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "drilldowns": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        }
+      },
+      "successful_only": {
+        "runs": 0,
+        "successful": 0,
+        "tokens": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "seconds": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "visible_bytes": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "commands": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "drilldowns": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        }
+      }
+    },
+    {
+      "level": 2,
+      "mode": "integrated",
+      "unconditional": {
+        "runs": 0,
+        "successful": 0,
+        "tokens": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "seconds": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "visible_bytes": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "commands": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "drilldowns": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        }
+      },
+      "successful_only": {
+        "runs": 0,
+        "successful": 0,
+        "tokens": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "seconds": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "visible_bytes": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "commands": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "drilldowns": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        }
+      }
+    },
+    {
+      "level": 3,
+      "mode": "disabled",
+      "unconditional": {
+        "runs": 0,
+        "successful": 0,
+        "tokens": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "seconds": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "visible_bytes": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "commands": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "drilldowns": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        }
+      },
+      "successful_only": {
+        "runs": 0,
+        "successful": 0,
+        "tokens": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "seconds": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "visible_bytes": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "commands": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "drilldowns": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        }
+      }
+    },
+    {
+      "level": 3,
+      "mode": "integrated",
+      "unconditional": {
+        "runs": 0,
+        "successful": 0,
+        "tokens": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "seconds": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "visible_bytes": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "commands": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "drilldowns": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        }
+      },
+      "successful_only": {
+        "runs": 0,
+        "successful": 0,
+        "tokens": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "seconds": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "visible_bytes": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "commands": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "drilldowns": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        }
+      }
+    },
+    {
+      "level": 4,
+      "mode": "disabled",
+      "unconditional": {
+        "runs": 0,
+        "successful": 0,
+        "tokens": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "seconds": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "visible_bytes": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "commands": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "drilldowns": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        }
+      },
+      "successful_only": {
+        "runs": 0,
+        "successful": 0,
+        "tokens": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "seconds": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "visible_bytes": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "commands": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "drilldowns": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        }
+      }
+    },
+    {
+      "level": 4,
+      "mode": "integrated",
+      "unconditional": {
+        "runs": 0,
+        "successful": 0,
+        "tokens": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "seconds": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "visible_bytes": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "commands": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "drilldowns": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        }
+      },
+      "successful_only": {
+        "runs": 0,
+        "successful": 0,
+        "tokens": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "seconds": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "visible_bytes": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "commands": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "drilldowns": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        }
+      }
+    },
+    {
+      "level": 5,
+      "mode": "disabled",
+      "unconditional": {
+        "runs": 0,
+        "successful": 0,
+        "tokens": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "seconds": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "visible_bytes": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "commands": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "drilldowns": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        }
+      },
+      "successful_only": {
+        "runs": 0,
+        "successful": 0,
+        "tokens": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "seconds": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "visible_bytes": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "commands": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "drilldowns": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        }
+      }
+    },
+    {
+      "level": 5,
+      "mode": "integrated",
+      "unconditional": {
+        "runs": 0,
+        "successful": 0,
+        "tokens": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "seconds": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "visible_bytes": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "commands": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "drilldowns": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        }
+      },
+      "successful_only": {
+        "runs": 0,
+        "successful": 0,
+        "tokens": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "seconds": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "visible_bytes": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "commands": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        },
+        "drilldowns": {
+          "measured": 0,
+          "mean": null,
+          "median": null
+        }
+      }
+    }
+  ],
+  "pairs": [
+    {
+      "id": "coding/l1-clamp",
+      "level": 1,
+      "repetition": 1,
+      "both_successful": false,
+      "token_reduction_percent": null,
+      "output_reduction_percent": null,
+      "execution_overhead_percent": -3.982000437141256
+    }
+  ]
+}

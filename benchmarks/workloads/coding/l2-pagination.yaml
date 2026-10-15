@@ -1,0 +1,18 @@
+version: 1
+name: coding/l2-pagination
+fixture: ../../fixtures/l2-pagination
+git: {init: true}
+timeout: 11m
+task: |
+  Implement zero-based pagination. Page(items, offset, limit) must return at most limit items, reject negative arguments, return an empty slice beyond the end, and avoid aliasing the input. List must propagate pagination errors.
+  Preserve existing tests and go.mod. Use only the Go standard library. Complete and validate the task in this workspace.
+verify:
+  - run:
+      argv: ["git", "diff", "--exit-code", "HEAD", "--", "*_test.go", "go.mod"]
+      expect: {exit: 0}
+  - run:
+      argv: ["go", "test", "-count=1", "./..."]
+      expect: {exit: 0}
+  - run:
+      argv: ["go", "vet", "./..."]
+      expect: {exit: 0}

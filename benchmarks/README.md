@@ -1,5 +1,9 @@
 # Reproducible benchmark workloads
 
+For the ten-workload Claude Code coding evaluation covering L1–L5, see
+[CODING.md](CODING.md). It includes fixture validation, a smoke pair, a paired
+three-repetition matrix and reports using the existing agent benchmark runner.
+
 Run one trial with:
 
 ```text

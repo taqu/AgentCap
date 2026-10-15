@@ -1,0 +1,111 @@
+{
+  "version": 1,
+  "model": "claude-sonnet-4-6",
+  "repetitions": 3,
+  "modes": [
+    "disabled",
+    "integrated"
+  ],
+  "workloads": [
+    {
+      "id": "coding/l1-clamp",
+      "level": 1,
+      "workload": "workloads/coding/l1-clamp.yaml",
+      "fixture": "l1-clamp",
+      "revision": "v1",
+      "expected_behavior": "Repair Clamp so it clamps integers to the inclusive [low, high] interval without changing its signature.",
+      "characteristics": "Single implementation file, boundary conditional repair.",
+      "timeout_minutes": 8
+    },
+    {
+      "id": "coding/l1-duration",
+      "level": 1,
+      "workload": "workloads/coding/l1-duration.yaml",
+      "fixture": "l1-duration",
+      "revision": "v1",
+      "expected_behavior": "Repair ParseSeconds: accept nonnegative integer seconds, reject negative or malformed input, and return the corresponding time.Duration.",
+      "characteristics": "Single implementation file, unit conversion repair.",
+      "timeout_minutes": 8
+    },
+    {
+      "id": "coding/l2-config",
+      "level": 2,
+      "workload": "workloads/coding/l2-config.yaml",
+      "fixture": "l2-config",
+      "revision": "v1",
+      "expected_behavior": "Fix configuration loading and client construction. An absent PORT defaults to 8080; an explicit port must be 1..65535. Address must include the supplied hostname and selected port.",
+      "characteristics": "Two packages, parsing defaults and address construction.",
+      "timeout_minutes": 11
+    },
+    {
+      "id": "coding/l2-pagination",
+      "level": 2,
+      "workload": "workloads/coding/l2-pagination.yaml",
+      "fixture": "l2-pagination",
+      "revision": "v1",
+      "expected_behavior": "Implement zero-based pagination. Page(items, offset, limit) must return at most limit items, reject negative arguments, return an empty slice beyond the end, and avoid aliasing the input. List must propagate pagination errors.",
+      "characteristics": "Two packages, new behavior plus error propagation.",
+      "timeout_minutes": 11
+    },
+    {
+      "id": "coding/l3-ledger",
+      "level": 3,
+      "workload": "workloads/coding/l3-ledger.yaml",
+      "fixture": "l3-ledger",
+      "revision": "v1",
+      "expected_behavior": "Repair the event processing pipeline. Credits add and debits subtract nonnegative amounts; duplicate event IDs are ignored. Reject empty IDs and unknown kinds without changing ledger state. Run returns total=<integer> followed by a newline. Preserve package APIs.",
+      "characteristics": "Five interacting packages; decoding, idempotency, transaction state and reporting.",
+      "timeout_minutes": 14
+    },
+    {
+      "id": "coding/l3-planner",
+      "level": 3,
+      "workload": "workloads/coding/l3-planner.yaml",
+      "fixture": "l3-planner",
+      "revision": "v1",
+      "expected_behavior": "Implement deterministic dependency planning. Dependencies precede dependents, unrelated ready nodes use lexical order, and missing dependencies and cycles are errors. Reject duplicate and empty node names when parsing. Preserve public APIs.",
+      "characteristics": "Graph algorithm, input validation and planner integration across three packages.",
+      "timeout_minutes": 14
+    },
+    {
+      "id": "coding/l4-store",
+      "level": 4,
+      "workload": "workloads/coding/l4-store.yaml",
+      "fixture": "l4-store",
+      "revision": "v1",
+      "expected_behavior": "Repair the revisioned storage subsystem and all its callers. Expected revision 0 creates a missing key; updates require the current revision and increment it. Reject stale revisions, negative revisions and empty keys atomically. Snapshots and replica copies must not alias storage. Concurrent access must be safe. Preserve public APIs and export behavior.",
+      "characteristics": "Five packages; optimistic concurrency, atomic failure, ownership and parallel access.",
+      "timeout_minutes": 17
+    },
+    {
+      "id": "coding/l4-context-migration",
+      "level": 4,
+      "workload": "workloads/coding/l4-context-migration.yaml",
+      "fixture": "l4-context-migration",
+      "revision": "v1",
+      "expected_behavior": "Complete the storage API migration to context.Context across all packages. Put must reject a canceled context without mutation. Also restore revision conflict handling, snapshot independence and concurrency safety. Keep the new storage signatures and existing external API, export and replica signatures.",
+      "characteristics": "Five packages with compilation failures; API migration plus regression repair.",
+      "timeout_minutes": 17
+    },
+    {
+      "id": "coding/l5-ledger-workflow",
+      "level": 5,
+      "workload": "workloads/coding/l5-ledger-workflow.yaml",
+      "fixture": "l5-ledger-workflow",
+      "revision": "v1",
+      "expected_behavior": "Deliver the ledger batch CLI in stages: first restore ledger unit behavior (credits, debits, ID idempotency, invalid-event rejection); then integrate newline-separated JSON batches, ignoring blank lines; finally make the CLI print total=<integer> with a newline on success and exit nonzero on invalid input. Validate the unit layer before the batch layer, then the subprocess integration. Preserve existing APIs and tests.",
+      "characteristics": "Eight packages; unit, batch and subprocess validation stages with interacting failures.",
+      "timeout_minutes": 20
+    },
+    {
+      "id": "coding/l5-planner-workflow",
+      "level": 5,
+      "workload": "workloads/coding/l5-planner-workflow.yaml",
+      "fixture": "l5-planner-workflow",
+      "revision": "v1",
+      "expected_behavior": "Repair the dependency planner through staged validation: establish deterministic topological order and parsing rejection of duplicates, empty names, missing dependencies and cycles; fix cache invalidation for changed inputs without masking errors; make batch processing fail atomically (nil output on any error); finish the CLI with newline-terminated plans and nonzero error exits. Validate graph/parse/plan first, cache/batch next, subprocess integration last. Preserve public APIs and tests.",
+      "characteristics": "Eight packages; algorithm, cache history, atomic batch and subprocess integration stages.",
+      "timeout_minutes": 20
+    }
+  ]
+}

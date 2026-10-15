@@ -1,0 +1,18 @@
+version: 1
+name: coding/l3-planner
+fixture: ../../fixtures/l3-planner
+git: {init: true}
+timeout: 14m
+task: |
+  Implement deterministic dependency planning. Dependencies precede dependents, unrelated ready nodes use lexical order, and missing dependencies and cycles are errors. Reject duplicate and empty node names when parsing. Preserve public APIs.
+  Preserve existing tests and go.mod. Use only the Go standard library. Complete and validate the task in this workspace.
+verify:
+  - run:
+      argv: ["git", "diff", "--exit-code", "HEAD", "--", "*_test.go", "go.mod"]
+      expect: {exit: 0}
+  - run:
+      argv: ["go", "test", "-count=1", "./..."]
+      expect: {exit: 0}
+  - run:
+      argv: ["go", "vet", "./..."]
+      expect: {exit: 0}

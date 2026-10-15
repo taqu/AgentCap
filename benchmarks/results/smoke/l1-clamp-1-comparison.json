@@ -1,0 +1,147 @@
+{
+  "schema_version": 2,
+  "kind": "single",
+  "baseline": {
+    "schema_version": 5,
+    "workload": "coding/l1-clamp",
+    "agent": "claude",
+    "mode": "disabled",
+    "trial_count": 1,
+    "execution_status": "agent_error"
+  },
+  "candidate": {
+    "schema_version": 5,
+    "workload": "coding/l1-clamp",
+    "agent": "claude",
+    "mode": "integrated",
+    "trial_count": 1,
+    "execution_status": "agent_error"
+  },
+  "outcomes": [
+    {
+      "name": "task_success",
+      "baseline": {
+        "count": 0,
+        "total": 1
+      },
+      "candidate": {
+        "count": 0,
+        "total": 1
+      },
+      "baseline_status": "measured",
+      "candidate_status": "measured"
+    }
+  ],
+  "metrics": [
+    {
+      "name": "raw_bytes",
+      "unit": "bytes",
+      "baseline": 0,
+      "candidate": 0,
+      "baseline_status": "measured",
+      "candidate_status": "measured",
+      "delta": 0,
+      "relative_delta": null
+    },
+    {
+      "name": "stateless_bytes",
+      "unit": "bytes",
+      "baseline": 0,
+      "candidate": 0,
+      "baseline_status": "measured",
+      "candidate_status": "measured",
+      "delta": 0,
+      "relative_delta": null
+    },
+    {
+      "name": "stateful_bytes",
+      "unit": "bytes",
+      "baseline": 0,
+      "candidate": 0,
+      "baseline_status": "measured",
+      "candidate_status": "measured",
+      "delta": 0,
+      "relative_delta": null
+    },
+    {
+      "name": "total_visible_bytes",
+      "unit": "bytes",
+      "baseline": 0,
+      "candidate": 0,
+      "baseline_status": "measured",
+      "candidate_status": "measured",
+      "delta": 0,
+      "relative_delta": null
+    },
+    {
+      "name": "command_count",
+      "unit": "count",
+      "baseline": 0,
+      "candidate": 0,
+      "baseline_status": "measured",
+      "candidate_status": "measured",
+      "delta": 0,
+      "relative_delta": null
+    },
+    {
+      "name": "wall_time_ns",
+      "unit": "ns",
+      "baseline": 187663824200,
+      "candidate": 180191049900,
+      "baseline_status": "measured",
+      "candidate_status": "measured",
+      "delta": -7472774300,
+      "relative_delta": -0.039820004371412566
+    },
+    {
+      "name": "processing_ns",
+      "unit": "ns",
+      "baseline": null,
+      "candidate": 0,
+      "baseline_status": "not_applicable",
+      "candidate_status": "measured",
+      "delta": null,
+      "relative_delta": null
+    },
+    {
+      "name": "show_count",
+      "unit": "count",
+      "baseline": null,
+      "candidate": 0,
+      "baseline_status": "not_applicable",
+      "candidate_status": "measured",
+      "delta": null,
+      "relative_delta": null
+    },
+    {
+      "name": "raw_retrieval_count",
+      "unit": "count",
+      "baseline": null,
+      "candidate": 0,
+      "baseline_status": "not_applicable",
+      "candidate_status": "measured",
+      "delta": null,
+      "relative_delta": null
+    },
+    {
+      "name": "show_bytes",
+      "unit": "bytes",
+      "baseline": null,
+      "candidate": 0,
+      "baseline_status": "not_applicable",
+      "candidate_status": "measured",
+      "delta": null,
+      "relative_delta": null
+    },
+    {
+      "name": "raw_retrieval_bytes",
+      "unit": "bytes",
+      "baseline": null,
+      "candidate": 0,
+      "baseline_status": "not_applicable",
+      "candidate_status": "measured",
+      "delta": null,
+      "relative_delta": null
+    }
+  ]
+}

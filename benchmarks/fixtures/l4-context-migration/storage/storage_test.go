@@ -1,0 +1,4 @@
+package storage
+import("context";"testing";"sync")
+func TestCAS(t *testing.T){s:=New();r,e:=s.Put(context.Background(),"a","first",0);if e!=nil||r.Revision!=1{t.Fatal(r,e)};if _,e=s.Put(context.Background(),"a","stale",0);e==nil{t.Fatal("stale accepted")};r,_=s.Get(context.Background(),"a");if r.Value!="first"{t.Fatal("conflict mutated")};if _,e=s.Put(context.Background(),"","x",0);e==nil{t.Fatal("empty key")};if _,e=s.Put(context.Background(),"b","x",-1);e==nil{t.Fatal("negative revision")};snap:=s.Snapshot(context.Background());delete(snap,"a");if _,ok:=s.Get(context.Background(),"a");!ok{t.Fatal("snapshot aliases")}}
+func TestConcurrent(t *testing.T){s:=New();var wg sync.WaitGroup;for i:=0;i<20;i++{wg.Add(1);go func(){defer wg.Done();s.Put(context.Background(),"key","v",0);s.Get(context.Background(),"key");s.Snapshot(context.Background())}()};wg.Wait();r,_:=s.Get(context.Background(),"key");if r.Revision!=1{t.Fatalf("revision %d",r.Revision)}}
